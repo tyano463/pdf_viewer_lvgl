@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "v_common.h": "c",
+        "lv_types.h": "c",
+        "lv_conf_internal.h": "c"
+    }
+}
