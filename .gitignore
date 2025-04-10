@@ -15,3 +15,8 @@
 /missing
 /configure~
 /pdf_viewer_lvgl
+/gdb.txt
+/liblvgl.a
+
+## resources
+/assets_hamburger_ico.c

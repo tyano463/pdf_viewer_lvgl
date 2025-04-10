@@ -2,13 +2,22 @@
 #define __V_MENU_H__
 
 #include "v_common.h"
+#include "lvgl/lvgl.h"
 
-typedef struct
+typedef struct str_v_menu
 {
-    int a;
+    lv_obj_t *btn;
+    lv_obj_t *menu;
+    bool shown;
 } v_menu_t;
 
-v_menu_t *v_menu_init(void);
+typedef struct str_v_menu_ops
+{
+    void (*file_opened)(char *);
+
+} v_menu_ops_t;
+
+v_status_t v_menu_init(lv_obj_t *parent, v_menu_ops_t *ops);
 void v_menu_update(void);
 
 #endif

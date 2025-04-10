@@ -5,6 +5,8 @@ AM_INIT_AUTOMAKE([foreign -Wno-portability no-dependencies])
 AC_CANONICAL_HOST
 
 AC_PROG_CC
+AC_PROG_CXX
+AC_PROG_RANLIB
 
 if [[ "x${target}" != "x" ]] ; then
     CFLAGS="$CFLAGS --sysroot=$STAGING_DIR"

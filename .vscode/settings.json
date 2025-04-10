@@ -2,6 +2,23 @@
     "files.associations": {
         "v_common.h": "c",
         "lv_types.h": "c",
-        "lv_conf_internal.h": "c"
-    }
+        "lv_conf_internal.h": "c",
+        "v_pdf.h": "c",
+        "v_menu.h": "c",
+        "random": "c",
+        "lv_profiler.h": "c",
+        "lv_string.h": "c",
+        "lv_indev_scroll.h": "c",
+        "lv_indev_gesture.h": "c",
+        "lv_display_private.h": "c",
+        "lv_obj_private.h": "c",
+        "cstdint": "c",
+        "types.h": "c",
+        "unistd.h": "c",
+        "v_misc.h": "c",
+        "limits": "c",
+        "semaphore": "c",
+        "v_pen.h": "c"
+    },
+    "C_Cpp.errorSquiggles": "disabled"
 }
