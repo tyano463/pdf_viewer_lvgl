@@ -8,15 +8,12 @@
 #include "v_menu.h"
 #include "v_pen.h"
 #include "v_misc.h"
+#include "v_canvas.h"
 
 #define PDF_FILE "/usr/share/sample.pdf"
 #define SWIPE_MARGIN (50)
 
-#define WIDTH 1024
-#define HEIGHT 768
-
 #define WINDOW_TITLE "A Title"
-
 
 static v_status_t disp_init(void);
 static v_status_t show_pdf(lv_obj_t *parent, const char *path);
@@ -54,11 +51,18 @@ int main(int argc, char **argv)
     ERR_RETn(status != ST_SUCCESS);
     d("show_pdf:%d", status);
 
+    status = show_canvas(scr);
+    d("show canvas %d", status);
+
     menu_ops.file_opened = file_opened;
+    d("");
     status = v_menu_init(scr, &menu_ops);
+    d("");
 
     pen_ops.mode = mode_changed;
+    d("");
     status = v_pen_init(scr, &pen_ops);
+    d("pen init %d", status);
 
     while (1)
     {
@@ -90,7 +94,8 @@ static void pdf_callback(lv_event_t *e)
         if (mode == MODE_PEN)
         {
             v_pen_ops_t *ops = v_pen_getops();
-            ops->draw(point.x, point.y, 0, V_PEN_DRAW_START);
+            // ops->draw(point.x, point.y, 0, V_PEN_DRAW_START);
+            draw_line_to(point.x, point.y, V_PEN_DRAW_START);
         }
         else
         {
@@ -108,7 +113,8 @@ static void pdf_callback(lv_event_t *e)
             if (mode == MODE_PEN)
             {
                 v_pen_ops_t *ops = v_pen_getops();
-                ops->draw(point.x, point.y, 0, V_PEN_DRAW_END);
+                //    ops->draw(point.x, point.y, 0, V_PEN_DRAW_END);
+                draw_line_to(point.x, point.y, V_PEN_DRAW_END);
             }
         }
     }
@@ -117,7 +123,8 @@ static void pdf_callback(lv_event_t *e)
         if (mode == MODE_PEN)
         {
             v_pen_ops_t *ops = v_pen_getops();
-            ops->draw(point.x, point.y, 0, V_PEN_DRAW_MOVE);
+            // ops->draw(point.x, point.y, 0, V_PEN_DRAW_MOVE);
+            draw_line_to(point.x, point.y, V_PEN_DRAW_MOVE);
         }
     }
 }

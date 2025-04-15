@@ -3,7 +3,7 @@
 #include "v_file.h"
 #include "v_misc.h"
 
-extern unsigned char assets_hamburger_ico[];
+extern unsigned char assets_hamburger_bmp[];
 
 static void create_menu(lv_obj_t *parent);
 static void hide_menu(void);
@@ -15,7 +15,8 @@ static v_menu_ops_t *_ops;
 static void file_opend(char *path)
 {
     d("%s", path);
-    if (_ops && _ops->file_opened) {
+    if (_ops && _ops->file_opened)
+    {
         _ops->file_opened(path);
     }
 }
@@ -43,8 +44,8 @@ static lv_img_dsc_t *hamburger_icon(void)
     lv_img_dsc_t *img;
     uint8_t w, h;
     img = lv_malloc(sizeof(lv_img_dsc_t));
-    img->data = (const uint8_t *)load_icon_data(assets_hamburger_ico, &w, &h);
-    d("assets:%p (%d x %d * 3= %d)", assets_hamburger_ico, w, h, w * h * 4);
+    img->data = (const uint8_t *)load_bmp_data(assets_hamburger_bmp, &w, &h);
+    d("assets:%p (%d x %d * 3= %d)", assets_hamburger_bmp, w, h, w * h * 4);
     img->header.magic = LV_IMAGE_HEADER_MAGIC;
     img->data_size = w * h * 4;
     img->header.stride = w * 4;
@@ -52,7 +53,7 @@ static lv_img_dsc_t *hamburger_icon(void)
     img->header.w = w;
     img->header.h = h;
     img->header.cf = LV_COLOR_FORMAT_ARGB8888;
-//    dump(img->data, 4096);
+    //    dump(img->data, 4096);
     return img;
 }
 
@@ -63,26 +64,27 @@ static void create_button(lv_obj_t *parent)
     ERR_RETn(!_menu);
 
     // style = lv_malloc(sizeof(lv_style_t));
-    _menu->btn = lv_imagebutton_create(parent);
+    _menu->btn = lv_image_create(parent);
     ERR_RETn(!_menu->btn);
 
     imgdsc = hamburger_icon();
     ERR_RETn(!imgdsc);
 
+    lv_obj_flag_t flag = LV_OBJ_FLAG_CLICKABLE;
+    lv_obj_add_flag(_menu->btn, flag);
+
     d("btn:%p imgdsc:%p", _menu->btn, imgdsc);
-    lv_imagebutton_set_src(_menu->btn, LV_IMAGEBUTTON_STATE_RELEASED, NULL, imgdsc, NULL);
+    lv_image_set_src(_menu->btn, imgdsc);
     lv_obj_set_pos(_menu->btn, 0, 0);
     lv_obj_set_size(_menu->btn, 64, 64);
-    d("");
 
-    lv_obj_add_event_cb(_menu->btn, event_handler, LV_EVENT_PRESSED, NULL);
-    lv_obj_add_event_cb(_menu->btn, event_handler, LV_EVENT_RELEASED, NULL);
+    lv_obj_add_event_cb(_menu->btn, event_handler, LV_EVENT_SINGLE_CLICKED, NULL);
 error_return:
     d("");
     return;
 }
 
-v_status_t v_menu_init(lv_obj_t *parent, v_menu_ops_t*ops)
+v_status_t v_menu_init(lv_obj_t *parent, v_menu_ops_t *ops)
 {
     v_status_t status;
 

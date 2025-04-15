@@ -4,6 +4,8 @@
 #include <string.h>
 #include <lvgl/lvgl.h>
 
+#define WIDTH 1024
+#define HEIGHT 768
 
 #define min(a, b) (((b) < (a)) ? (b) : (a))
 #define max(a, b) (((b) > (a)) ? (b) : (a))

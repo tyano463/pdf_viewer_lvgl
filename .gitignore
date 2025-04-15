@@ -19,4 +19,4 @@
 /liblvgl.a
 
 ## resources
-/assets_hamburger_ico.c
+/assets_*.c

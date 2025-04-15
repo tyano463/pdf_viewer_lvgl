@@ -18,7 +18,10 @@
         "v_misc.h": "c",
         "limits": "c",
         "semaphore": "c",
-        "v_pen.h": "c"
+        "v_pen.h": "c",
+        "stdint.h": "c",
+        "text_encoding": "c",
+        "typeinfo": "c"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }

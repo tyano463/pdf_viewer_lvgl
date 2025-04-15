@@ -1,0 +1,96 @@
+# PDF Viewer
+:toc:
+:toc-levels: 3
+:toc-title: TOC 
+:nofooter:
+:sectnums:
+:abstract-caption: Summary
+:figure-caption: Figure
+:table-caption: Table
+:source-highlighter: highlightjs
+:highlightjsdir: https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/
+
+
+
+== Summary
+This application allows you to view and manage digital music sheets. It supports various file formats and provides intuitive navigation and annotation features.
+
+== Table of Contents
+* <<introduction>>
+* <<installation>>
+* <<usage>>
+* <<file_formats>>
+* <<troubleshooting>>
+* <<contact>>
+
+== [[introduction]]Introduction
+Thank you for using *Music Sheet Viewer*. This guide will walk you through installing, using, and troubleshooting the application.
+
+== [[installation]]Installation
+
+=== System Requirements
+* Android 8.0+ or iOS 12+
+* Minimum 2GB RAM
+* Internet connection for downloading scores
+
+=== Installing the App
+. Open the App Store / Google Play
+. Search for `Music Sheet Viewer`
+. Tap "Install"
+
+== [[usage]]How to Use
+
+=== Opening a Score
+. Tap the "+" button on the main screen.
+. Choose a file from your library or cloud storage.
+. The sheet music will appear in the viewer.
+
+image::screenshots/open_score.png[Opening a Score, width=400]
+
+=== Page Navigation
+Use swipe gestures or the navigation bar at the bottom to move between pages.
+
+=== Adding Annotations
+. Tap the pencil icon.
+. Draw directly on the score.
+. Tap "Save" to confirm.
+
+== [[file_formats]]Supported File Formats
+
+[cols="1,1"]
+|===
+| Format | Description
+
+| PDF | Standard sheet music format
+| MusicXML | Editable digital notation
+| PNG, JPG | Scanned sheet images
+|===
+
+== [[troubleshooting]]Troubleshooting
+
+=== The score does not load
+* Make sure the file is not corrupted.
+* Try reopening the file.
+
+=== Annotations are not saving
+* Ensure you tap the "Save" icon after editing.
+* Check that you have write permissions in the app settings.
+
+== [[contact]]Contact
+
+For support, visit our website:
+
+https://acme.example.com/support[]
+
+Or email us at: support@acme.example.com
+
+== Appendix
+
+=== Figure List
+* *Figure 1:* Opening a Score
+
+=== Table List
+* *Table 1:* Supported File Formats
+
+=== Notes
+IMPORTANT: Do not use the app while driving or during a performance without proper preparation.
