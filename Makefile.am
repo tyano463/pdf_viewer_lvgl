@@ -19,28 +19,31 @@ pdf_viewer_lvgl_SOURCES = main.c \
 	v_file.c \
 	v_misc.c \
 	v_icon.c \
-	v_canvas.c \
 	v_assets_list.c \
+	v_canvas.c \
+	v_settings.c \
 	v_pen.c
 
 C_INC = \
+	-I. \
     -I$(srcdir)/lvgl \
     -I$(srcdir)/lvgl/src
 
-AM_CFLAGS = $(C_INC) -g -O0 -DHIDE_HIDDEN_FILES=1
-AM_CXXFLAGS = $(C_INC) -g -O0 -DHIDE_HIDDEN_FILES=1
+AM_CFLAGS = $(C_INC) -g -O0 -DHIDE_HIDDEN_FILES=1 `pkg-config librsvg-2.0 cairo --cflags`
+AM_CXXFLAGS = $(C_INC) -g -O0 -DHIDE_HIDDEN_FILES=1 `pkg-config librsvg-2.0 cairo --cflags` 
 #AM_CFLAGS = $(C_INC) -g -O0 -fsanitize=address
 #AM_CPPFLAGS = $(C_INC) -g -O0 -fsanitize=address
-AM_LDFLAGS = -lmupdf -lX11 -lstdc++ -lm
+AM_LDFLAGS = -lmupdf -lX11 -lstdc++ -lm `pkg-config librsvg-2.0 cairo --libs`
 
-ASSETS = hamburger pen24
+ASSETS = hamburger pen24 close_button
 ASSET_SRCS = $(addprefix assets_, $(addsuffix _bmp.c, $(ASSETS)))
 
 pdf_viewer_lvgl_SOURCES += $(ASSET_SRCS)
 #BUILT_SOURCES = $(pdf_viewer_lvgl_SOURCES)
 
 EXTRA_DIST = assets/hamburger.bmp \
-	assets/pen24.bmp
+	assets/pen24.bmp \
+	assets/close_button.bmp
 
 SOURCES = $(pdf_viewer_lvgl_SOURCES)
 am_pdf_viewer_lvgl_OBJECTS = $(pdf_viewer_lvgl_SOURCES:.c=.o)

@@ -5,7 +5,8 @@
 
 #define ASSETS_LIST \
     ENTRY(hamburger) \
-    ENTRY(pen24)
+    ENTRY(pen24) \
+    ENTRY(close_button) \
 
 uint8_t *get_asset_ptr(const char *name);
 

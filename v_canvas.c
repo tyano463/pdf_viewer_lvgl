@@ -12,26 +12,13 @@ static pthread_t *th;
 static pthread_mutex_t *mutex;
 static bool running;
 
-typedef struct str_point
-{
-    TAILQ_ENTRY(str_point)
-    entry;
-    float x;
-    float y;
-    v_pen_draw_mode_t mode;
-    lv_vector_path_t *stroke;
-} point_t;
-
-TAILQ_HEAD(tq_head, str_point)
-_head;
-struct tq_head *head;
+static lv_img_dsc_t *dsc;
+static lv_obj_t *image;
 
 static void *draw_main(void *);
 
 static void draw_thread_init(void)
 {
-    head = &_head;
-    TAILQ_INIT(head);
 
     mutex = lv_malloc(sizeof(pthread_mutex_t));
     pthread_mutex_init(mutex, NULL);
@@ -40,9 +27,21 @@ static void draw_thread_init(void)
     pthread_create(th, NULL, draw_main, NULL);
 }
 
-v_status_t show_canvas(lv_obj_t *parent)
+v_status_t v_init_canvas(lv_obj_t *parent)
 {
+    v_status_t status = ST_CREATE_CANVAS_FAILED;
+
+    dsc = lv_malloc(sizeof(lv_img_dsc_t));
+    ERR_RET(!dsc, "malloc");
+    memset(dsc, 0, sizeof(lv_img_dsc_t));
+    image = lv_img_create(parent);
+    ERR_RET(!image, "lv_img_create");
+
+    lv_obj_align(image, LV_ALIGN_TOP_MID, 0, 0);
+
     canvas = lv_canvas_create(parent);
+    ERR_RET(!canvas, "lv_canvas_create");
+
     LV_DRAW_BUF_INIT_STATIC(canvas_buf);
 
     lv_canvas_set_draw_buf(canvas, &canvas_buf);
@@ -51,94 +50,47 @@ v_status_t show_canvas(lv_obj_t *parent)
 
     draw_thread_init();
 
-    d("canvas:%p", canvas);
+    status = ST_SUCCESS;
+error_return:
+    return status;
+}
+
+v_status_t v_show_image(v_image_t *im)
+{
+    if (dsc->data)
+    {
+        lv_free((uint8_t *)dsc->data);
+    }
+
+    uint8_t *data = lv_malloc(im->size);
+    lv_memcpy(data, im->buf, im->size);
+
+    dsc->data = data;
+    dsc->header.cf = im->format;
+    dsc->header.w = im->width;
+    dsc->header.h = im->height;
+    dsc->header.magic = LV_IMAGE_HEADER_MAGIC;
+    dsc->data_size = im->size;
+    lv_img_set_src(image, dsc);
+
     return ST_SUCCESS;
 }
 
-point_t *last_point;
-void draw_line_to(float x, float y, v_pen_draw_mode_t mode)
-{
-    point_t *point = lv_malloc(sizeof(point_t));
-    static int cnt;
-    if (mode == V_PEN_DRAW_START)
-    {
-        cnt = 0;
-        point->x = x;
-        point->y = y;
-        point->stroke = lv_vector_path_create(LV_VECTOR_PATH_QUALITY_MEDIUM);
-        point->mode = mode;
-        last_point = point;
-    }
-    else
-    {
-        point->x = x;
-        point->y = y;
-        point->mode = mode;
-        point->stroke = last_point->stroke;
-    }
-    pthread_mutex_lock(mutex);
-    TAILQ_INSERT_TAIL(head, point, entry);
-    pthread_mutex_unlock(mutex);
-    d("add %p (%f, %f) %d", point, x, y, mode);
-}
+
 
 static void *draw_main(void *arg)
 {
-    static lv_vector_path_t *current;
-//    static lv_vector_dsc_t *dsc;
-    static lv_draw_line_dsc_t *dsc;
-    dsc = lv_malloc(sizeof(lv_draw_line_dsc_t));
     while (running)
     {
         pthread_mutex_lock(mutex);
 
-        if (head->tqh_first)
-        {
-            point_t *point = head->tqh_first;
-            TAILQ_REMOVE(head, point, entry);
-            pthread_mutex_unlock(mutex);
-            d("fetch %p mode:%d (%.1f,%.1f)", point, point->mode, point->x, point->y);
-            lv_fpoint_t fp = {
-                .x = point->x,
-                .y = point->y,
-            };
-            if (point->mode == V_PEN_DRAW_START)
-            {
-                lv_draw_line_dsc_init(dsc);
-                dsc->p1.x = fp.x;
-                dsc->p1.y = fp.y;
-                lv_canvas_init_layer(canvas, &layer);
-                d("dsc:%p path:%p", dsc, point->stroke);
-            }
-            else if (point->mode == V_PEN_DRAW_END)
-            {
-                // lv_vector_dsc_delete(dsc);
-                d("dsc:%p path:%p", dsc, point->stroke);
-                dsc->p2.x = fp.x;
-                dsc->p2.y = fp.y;
-                lv_draw_line(&layer, dsc);
-                lv_canvas_finish_layer(canvas, &layer);
-            }
-            else
-            {
-                dsc->p2.x = fp.x;
-                dsc->p2.y = fp.y;
-                lv_draw_line(&layer, dsc);
-
-                lv_draw_line_dsc_init(dsc);
-                dsc->p1.x = fp.x;
-                dsc->p1.y = fp.y;
-                d("dsc:%p path:%p", dsc, point->stroke);
-            }
-
-            point->stroke = current;
-            lv_task_handler();
-        }
-        else
-        {
-            pthread_mutex_unlock(mutex);
-            usleep(10000);
-        }
+        pthread_mutex_unlock(mutex);
+        usleep(10000);
     }
     return NULL;
+}
+
+void v_set_touch_callback(lv_event_cb_t cb)
+{
+    lv_obj_add_event_cb(canvas, cb, LV_EVENT_PRESSED | LV_EVENT_RELEASED, NULL);
 }

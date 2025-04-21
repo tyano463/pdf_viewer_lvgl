@@ -1,0 +1,10 @@
+@startuml
+!pragma teoz true
+
+participant main
+participant log
+participant lvgl
+
+main -> log : 初期化
+main -> lvgl : 初期化
+@enduml

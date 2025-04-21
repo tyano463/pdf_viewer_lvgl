@@ -60,30 +60,7 @@ static void v_pen_draw(float x, float y, float pressure, v_pen_draw_mode_t mode)
     }
 }
 
-lv_img_dsc_t *pen_icon(const char *name)
-{
-    uint8_t *icon;
-    uint8_t w, h;
-    lv_img_dsc_t *img = NULL;
 
-    uint8_t *asset = get_asset_ptr(name);
-    ERR_RETn(!asset);
-
-    img = lv_malloc(sizeof(lv_img_dsc_t));
-    ERR_RETn(!img);
-
-    img->data = (const uint8_t *)load_bmp_data(asset, &w, &h);
-    d("assets:%p (%d x %d * 3= %d)", asset, w, h, w * h * 4);
-    img->header.magic = LV_IMAGE_HEADER_MAGIC;
-    img->data_size = w * h * 4;
-    img->header.stride = w * 4;
-    img->header.flags = 0;
-    img->header.w = w;
-    img->header.h = h;
-    img->header.cf = LV_COLOR_FORMAT_ARGB8888;
-error_return:
-    return img;
-}
 v_status_t v_pen_init(lv_obj_t *parent, v_pen_ops_t *_ops)
 {
     lv_img_dsc_t *icon;
@@ -93,9 +70,9 @@ v_status_t v_pen_init(lv_obj_t *parent, v_pen_ops_t *_ops)
     lv_obj_flag_t flag = LV_OBJ_FLAG_CLICKABLE;
     lv_obj_add_flag(pen_button, flag);
 
-    icon = pen_icon("pen24");
+    icon = get_icon_dsc("pen24");
     lv_image_set_src(pen_button, icon);
-    lv_obj_align(pen_button, LV_ALIGN_TOP_RIGHT, -5, -5);
+    lv_obj_align(pen_button, LV_ALIGN_TOP_RIGHT, -5, 5);
     lv_obj_add_event_cb(pen_button, mode_change, LV_EVENT_CLICKED, NULL);
     data.num = 0;
 

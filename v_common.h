@@ -25,6 +25,16 @@
             goto error_return; \
     } while (0)
 
+#define ERR_RET(c, s, ...)                                                                     \
+    do                                                                                         \
+    {                                                                                          \
+        if (c)                                                                                 \
+        {                                                                                      \
+            v_log_write("%s(%d) %s " s "\n", __FILENAME__, __LINE__, __func__, ##__VA_ARGS__); \
+            goto error_return;                                                                 \
+        }                                                                                      \
+    } while (0)
+
 typedef enum
 {
     MODE_NORMAL,
@@ -34,6 +44,7 @@ typedef enum
 typedef enum
 {
     ST_SUCCESS,
+    ST_CREATE_CANVAS_FAILED,
     ST_LOG_INIT_FAILED,
     ST_LOG_WRITE_FAILED,
     ST_LOG_ROTATE_FAILED,

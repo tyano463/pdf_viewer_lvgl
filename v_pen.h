@@ -5,7 +5,8 @@
 #include <stdint.h>
 #include "v_common.h"
 
-typedef enum {
+typedef enum
+{
     V_PEN_DRAW_START,
     V_PEN_DRAW_ERASE_START,
     V_PEN_DRAW_MOVE,
@@ -23,6 +24,26 @@ typedef union
         uint8_t blue;
     } c;
 } v_color_t;
+
+typedef uint8_t v_pen_shape_kind_t;
+enum
+{
+    V_PEN_SHAPE_ROUND,
+    V_PEN_SHAPE_OVAL,
+    V_PEN_SHAPE_SQUARE,
+    V_PEN_SHAPE_MAX,
+};
+
+typedef struct str_v_pen_shape
+{
+    v_pen_shape_kind_t kind;
+} v_pen_shape_t;
+typedef struct str_v_pen
+{
+    v_color_t color;
+    v_pen_shape_t shape;
+    uint8_t size;
+} v_pen_t;
 
 typedef struct str_v_point
 {
@@ -52,7 +73,6 @@ typedef struct str_v_pen_ops
     void (*draw)(float x, float y, float pressure, v_pen_draw_mode_t mode);
     void (*mode)(v_mode_t);
 } v_pen_ops_t;
-
 
 v_status_t v_pen_init(lv_obj_t *parent, v_pen_ops_t *ops);
 v_pen_ops_t *v_pen_getops(void);

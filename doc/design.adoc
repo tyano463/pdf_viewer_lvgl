@@ -1,0 +1,58 @@
+# PDF Viewer
+:toc:
+:toc-levels: 3
+:toc-title: TOC 
+:nofooter:
+:sectnums:
+:abstract-caption: 図
+:figure-caption: 図
+:table-caption: 表
+:source-highlighter: highlightjs
+:highlightjsdir: https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/
+
+## 概要
+
+### 目的
+
+### 背景
+
+### 用語定義
+
+## システム
+
+### システム構成図
+
+image:images/system.svg[]
+
+### ハードウェア構成
+
+### ソフトウェア構成
+
+#### モジュール一覧
+
+.モジュール一覧
+[options="autowidth,header"]
+|===
+| モジュール名 | 内容| 備考
+| main | 起動処理、全体管理 | 
+| assets | アセット管理 | 
+| canvas | 描画 | 
+| file | ファイルを開くダイアログ |
+| icon | アセット画像読み込み | 
+| log | デバッグログ | 
+| menu | メニュー表示 | 
+| misc | プロジェクト固有の簡易ライブラリ | 
+| pdf | PDF処理 |
+| pen | 手書き処理 | 
+| musicxml | musicxml処理 | 
+| midi | midi処理 |
+|===
+
+#### モジュール構成図
+
+## 詳細設計
+
+### ソフトウェア設計
+
+#### 初期化シーケンス
+

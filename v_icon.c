@@ -1,7 +1,9 @@
 #include "lvgl/lvgl.h"
+#include <stdio.h>
 #include "v_icon.h"
 #include "v_misc.h"
 #include "v_common.h"
+#include "v_assets_list.h"
 
 #pragma pack(push, 1)
 typedef struct
@@ -100,7 +102,7 @@ uint8_t *load_bmp_data(uint8_t *bmp, uint8_t *w, uint8_t *h)
     BITMAPINFOHEADER *bmpinfo;
     uint8_t *data = NULL;
 
-    bmpfile = (BITMAPFILEHEADER*)bmp;
+    bmpfile = (BITMAPFILEHEADER *)bmp;
     bmpinfo = (BITMAPINFOHEADER *)&bmpfile[1];
 
     *w = bmpinfo->biWidth;
@@ -123,4 +125,84 @@ uint8_t *load_bmp_data(uint8_t *bmp, uint8_t *w, uint8_t *h)
     }
 error_return:
     return data;
+}
+
+void to_bmp(const char *path, uint8_t *data, uint16_t width, uint16_t height)
+{
+    BITMAPFILEHEADER file_header;
+    BITMAPINFOHEADER info_header;
+    memset(&file_header, 0, sizeof(BITMAPFILEHEADER));
+    memset(&info_header, 0, sizeof(BITMAPINFOHEADER));
+
+    int row_size = width * 4;
+    int image_size = row_size * height;
+    int file_size = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER) + image_size;
+
+    file_header.bfType = 0x4D42;
+    file_header.bfSize = file_size;
+    file_header.bfReserved1 = 0;
+    file_header.bfReserved2 = 0;
+    file_header.bfOffBits = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER);
+
+    info_header.biSize = sizeof(BITMAPINFOHEADER);
+    info_header.biWidth = width;
+    info_header.biHeight = height;
+    info_header.biPlanes = 1;
+    info_header.biBitCount = 32;
+    info_header.biCompression = 3;
+    info_header.biSizeImage = image_size;
+    info_header.biXPelsPerMeter = 0;
+    info_header.biYPelsPerMeter = 0;
+    info_header.biClrUsed = 0;
+    info_header.biClrImportant = 0;
+
+    // ファイルを開いて書き込む
+    FILE *file = fopen(path, "wb");
+    if (!file)
+    {
+        perror("Unable to open file for writing");
+        return;
+    }
+
+    fwrite(&file_header, sizeof(file_header), 1, file);
+    fwrite(&info_header, sizeof(info_header), 1, file);
+
+    for (int y = height - 1; y >= 0; y--)
+    {
+        for (int x = 0; x < width; x++)
+        {
+            unsigned char b = data[(y * width + x) * 4 + 0];
+            unsigned char g = data[(y * width + x) * 4 + 1];
+            unsigned char r = data[(y * width + x) * 4 + 2];
+            unsigned char a = data[(y * width + x) * 4 + 3];
+            fwrite(&b, sizeof(unsigned char), 1, file);
+            fwrite(&g, sizeof(unsigned char), 1, file);
+            fwrite(&r, sizeof(unsigned char), 1, file);
+            fwrite(&a, sizeof(unsigned char), 1, file);
+        }
+    }
+
+    fclose(file);
+}
+
+
+lv_image_dsc_t *get_icon_dsc(const char *name)
+{
+    lv_image_dsc_t *dsc = lv_malloc(sizeof(lv_image_dsc_t));
+    lv_memzero(dsc, sizeof(lv_image_dsc_t));
+
+    uint8_t w, h;
+    uint8_t *asset = get_asset_ptr(name);
+    dsc->data = load_bmp_data(asset, &w, &h);
+    dsc->data_size = w * h * 4;
+
+    dsc->header.magic = LV_IMAGE_HEADER_MAGIC;
+    dsc->data_size = w * h * 4;
+    dsc->header.stride = w * 4;
+    dsc->header.flags = 0;
+    dsc->header.w = w;
+    dsc->header.h = h;
+    dsc->header.cf = LV_COLOR_FORMAT_ARGB8888;
+
+    return dsc;
 }

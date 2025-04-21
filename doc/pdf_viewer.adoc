@@ -28,10 +28,6 @@ Thank you for using *Music Sheet Viewer*. This guide will walk you through insta
 
 == [[installation]]Installation
 
-=== System Requirements
-* Android 8.0+ or iOS 12+
-* Minimum 2GB RAM
-* Internet connection for downloading scores
 
 === Installing the App
 . Open the App Store / Google Play

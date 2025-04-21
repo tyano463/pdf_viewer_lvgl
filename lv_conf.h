@@ -27,7 +27,7 @@
  *====================*/
 
 /** Color depth: 1 (I1), 8 (L8), 16 (RGB565), 24 (RGB888), 32 (XRGB8888) */
-#define LV_COLOR_DEPTH 24
+#define LV_COLOR_DEPTH 32
 
 /*=========================
    STDLIB WRAPPER SETTINGS
@@ -962,7 +962,7 @@
 
 /*SVG library
  *  - Requires `LV_USE_VECTOR_GRAPHIC = 1` */
-#define LV_USE_SVG 0
+#define LV_USE_SVG 1
 #define LV_USE_SVG_ANIMATION 0
 #define LV_USE_SVG_DEBUG 0
 

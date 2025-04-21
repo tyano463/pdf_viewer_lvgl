@@ -21,7 +21,10 @@
         "v_pen.h": "c",
         "stdint.h": "c",
         "text_encoding": "c",
-        "typeinfo": "c"
+        "typeinfo": "c",
+        "format": "c",
+        "v_canvas.h": "c",
+        "v_icon.h": "c"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }
