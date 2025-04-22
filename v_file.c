@@ -19,7 +19,7 @@ static void file_explorer_event_handler(lv_event_t *e)
 
     if (code == LV_EVENT_VALUE_CHANGED)
     {
-        char *p;
+        const char *p;
         const char *cur_path = lv_file_explorer_get_current_path(obj);
         const char *sel_fn = lv_file_explorer_get_selected_file_name(obj);
         LV_LOG_USER("%s%s", cur_path, sel_fn);
@@ -45,7 +45,7 @@ static void close_btn_event_cb(lv_event_t *e)
     do_hide_filer();
 }
 
-void lv_example_file_explorer_1(void)
+void open_file_dialog(void)
 {
     file_explorer = lv_file_explorer_create(lv_screen_active());
     lv_file_explorer_set_sort(file_explorer, LV_EXPLORER_SORT_KIND);
@@ -101,7 +101,7 @@ void show_filer(v_file_callback_t callback)
     _file.callback = callback;
 
     if (!file_explorer)
-        lv_example_file_explorer_1();
+        open_file_dialog();
 
     do_show_filer();
 }

@@ -32,7 +32,6 @@ static v_format_t get_format(const char *path);
 static v_status_t show_page(v_format_t format, const char *path, uint16_t page);
 
 static lv_display_t *disp;
-static lv_color_t *pdf_data;
 static lv_obj_t *draw_area;
 static v_menu_ops_t menu_ops;
 static v_pen_ops_t pen_ops;
@@ -40,6 +39,7 @@ static bool initialized = false;
 static v_mode_t mode;
 static lv_point_t touch_point;
 static v_draw_ops_t *(*draw_ops[V_FORMAT_MAX])(void);
+static uint8_t *orig_data;
 
 int main(int argc, char **argv)
 {
@@ -188,12 +188,49 @@ static v_draw_ops_t *get_ops(v_format_t format)
     return draw_ops[format]();
 }
 
+static uint8_t *autoscale(uint8_t *orig, int *_w, int *_h)
+{
+    uint8_t *data = NULL;
+    int w = *_w;
+    int h = *_h;
+    float scale_x = (float)lv_obj_get_width(lv_screen_active()) / w;
+    float scale_y = (float)lv_obj_get_height(lv_screen_active()) / h;
+
+    float scale = min(scale_x, scale_y);
+
+    int scaled_w = (int)((float)w * scale);
+    int scaled_h = (int)((float)h * scale);
+    d("scale %.02f,%.02f -> %.02f (%d, %d) => (%d, %d)", scale_x, scale_y, scale, w, h, scaled_w, scaled_h);
+
+    static cairo_surface_t *scaled_surface = NULL;
+
+    cairo_surface_t *orig_surface = cairo_image_surface_create_for_data(orig, CAIRO_FORMAT_ARGB32, w, h, w * 4);
+    ERR_RET(!orig_surface, "cairo_image_surface_create_for_data");
+    if (scaled_surface)
+    {
+        cairo_surface_destroy(scaled_surface);
+    }
+    scaled_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, scaled_w, scaled_h);
+
+    cairo_t *cr = cairo_create(scaled_surface);
+    cairo_scale(cr, (double)scale, (double)scale);
+    cairo_set_source_surface(cr, orig_surface, 0, 0);
+    cairo_paint(cr);
+
+    cairo_destroy(cr);
+    cairo_surface_destroy(orig_surface);
+
+    *_w = scaled_w;
+    *_h = scaled_h;
+    data = cairo_image_surface_get_data(scaled_surface);
+error_return:
+    return data;
+}
+
 static v_status_t show_page(v_format_t format, const char *path, uint16_t page)
 {
     d("format:%d", format);
     v_draw_ops_t *ops = get_ops(format);
-
-    static lv_color_t *data;
 
     v_status_t status = ST_PDF_OPEN_FAILED;
     int w, h, stride;
@@ -206,19 +243,24 @@ static v_status_t show_page(v_format_t format, const char *path, uint16_t page)
     status = ops->size(&w, &h);
     ERR_RETn(status != ST_SUCCESS);
 
-    pdf_data = calloc(h * w * 3, 1);
-    status = ops->pixel((uint8_t *)pdf_data, 0, w * 3, (v_scale_t){1, 1});
-    ERR_RET(status != ST_SUCCESS, "v_pdf_alloc_pixel_data");
+    d("(w, h) = (%d, %d)", w, h);
+    if (orig_data)
+    {
+        free(orig_data);
+    }
+    orig_data = calloc(h * w * 4, 1);
+    status = ops->pixel(orig_data, 0, w * 4, (v_scale_t){1, 1});
+    ERR_RET(status != ST_SUCCESS, "### ERROR get pixel");
 
-    size_t size = w * h * sizeof(lv_color_t);
+    uint8_t *data = autoscale(orig_data, &w, &h);
+
     static v_image_t image;
-    image.buf = (uint8_t *)pdf_data;
-    image.format = LV_COLOR_FORMAT_RGB888;
+    image.buf = data;
+    image.format = LV_COLOR_FORMAT_ARGB8888;
     image.height = h;
     image.width = w;
-    image.size = w * h * 3;
+    image.size = w * h * 4;
     v_show_image(&image);
-    free(pdf_data);
 
     status = ST_SUCCESS;
 error_return:

@@ -57,6 +57,8 @@ error_return:
 
 v_status_t v_show_image(v_image_t *im)
 {
+    int w, h;
+    float scale, scale_x, scale_y;
     if (dsc->data)
     {
         lv_free((uint8_t *)dsc->data);
@@ -72,11 +74,8 @@ v_status_t v_show_image(v_image_t *im)
     dsc->header.magic = LV_IMAGE_HEADER_MAGIC;
     dsc->data_size = im->size;
     lv_img_set_src(image, dsc);
-
     return ST_SUCCESS;
 }
-
-
 
 static void *draw_main(void *arg)
 {

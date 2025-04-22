@@ -147,3 +147,4 @@ bool file_exists(const char *path)
 
     return S_ISREG(st.st_mode);
 }
+

@@ -117,19 +117,24 @@ static v_status_t v_pdf_alloc_pixel_data(uint8_t *data, int page, int rowstride,
     v_pdf_release_pixel_data();
     pix = fz_new_pixmap_from_page_number(pdf->ctx, pdf->doc, page, ctm, cs, 0);
 
-    d("%d, %d", pix->w, pix->h);
+    d("%d, %d str:%d", pix->w, pix->h, pix->stride);
     w = min(pix->w, pdf->width);
     h = min(pix->h, pdf->height);
+
+    //    FILE *fp = fopen("/tmp/data.bin", "wb");
+    //    fwrite(pix->samples, pix->stride * pix->h, 1, fp);
+    //    fclose(fp);
 
     for (i = 0; i < h; i++)
     {
         uint8_t *s = &pix->samples[i * pix->stride];
         for (int j = 0; j < w; j++)
         {
-            uint8_t *p = data + i * rowstride + j * 3;
+            uint8_t *p = data + i * rowstride + j * 4;
             p[0] = s[2];
             p[1] = s[1];
             p[2] = s[0];
+            p[3] = 0xff;
             s += pix->n;
         }
     }
