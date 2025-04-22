@@ -2,6 +2,11 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <sys/stat.h>
+#include <string.h>
+#include <errno.h>
+#include <unistd.h>
+
 
 #include "v_common.h"
 #include "v_misc.h"
@@ -74,4 +79,37 @@ float distance(lv_point_t *a, lv_point_t *b)
 {
     float d2 = (b->x - a->x) * (b->x - a->x) + (b->y - a->y) * (b->y - a->y);
     return sqrtf(d2);
+}
+
+int mkdir_p(const char *path, mode_t mode) {
+    char tmp[1024];
+    char *p = NULL;
+    size_t len;
+
+    snprintf(tmp, sizeof(tmp), "%s", path);
+    len = strlen(tmp);
+    if (tmp[len - 1] == '/')
+        tmp[len - 1] = '\0';
+
+    for (p = tmp + 1; *p; p++) {
+        if (*p == '/') {
+            *p = '\0';
+            if (mkdir(tmp, mode) != 0) {
+                if (errno != EEXIST) {
+                    perror("mkdir");
+                    return -1;
+                }
+            }
+            *p = '/';
+        }
+    }
+
+    if (mkdir(tmp, mode) != 0) {
+        if (errno != EEXIST) {
+            perror("mkdir");
+            return -1;
+        }
+    }
+
+    return 0;
 }

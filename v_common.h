@@ -4,6 +4,7 @@
 #include <string.h>
 #include <lvgl/lvgl.h>
 
+#define APP_NAME "pdf_viewer_lvgl"
 #define WIDTH 1024
 #define HEIGHT 768
 
@@ -40,6 +41,12 @@ typedef enum
     MODE_NORMAL,
     MODE_PEN,
 } v_mode_t;
+
+typedef uint8_t v_annot_display_t;
+enum {
+    V_ANNOT_SHOW,
+    V_ANNOT_HIDE,
+};
 
 typedef enum
 {
