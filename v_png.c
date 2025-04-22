@@ -1,9 +1,13 @@
 #include "v_png.h"
 #include <cairo/cairo.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <jpeglib.h>
 
 static void init_ops(void);
 static v_status_t v_png_init(void);
 static v_status_t v_png_open(const char *path);
+static v_status_t v_jpeg_open(const char *path);
 static int v_png_page(void);
 static v_status_t v_png_get_pixel(uint8_t *data, int page, int rowstride, v_scale_t ctm);
 static v_status_t v_png_get_size(int *width, int *height);
@@ -20,6 +24,16 @@ v_draw_ops_t *v_png_get_ops(void)
     return &g_ops;
 }
 
+v_draw_ops_t *v_jpeg_get_ops(void)
+{
+    if (!g_ops.init)
+    {
+        init_ops();
+        g_ops.open = v_jpeg_open;
+    }
+    return &g_ops;
+}
+
 static void init_ops(void)
 {
     g_ops.init = v_png_init;
@@ -28,6 +42,7 @@ static void init_ops(void)
     g_ops.pixel = v_png_get_pixel;
     g_ops.size = v_png_get_size;
 }
+
 static v_status_t v_png_init(void)
 {
     return ST_SUCCESS;
@@ -35,6 +50,10 @@ static v_status_t v_png_init(void)
 
 static v_status_t v_png_open(const char *path)
 {
+    if (surface)
+    {
+        cairo_surface_destroy(surface);
+    }
     surface = cairo_image_surface_create_from_png(path);
     if (cairo_surface_status(surface) != CAIRO_STATUS_SUCCESS)
     {
@@ -44,7 +63,69 @@ static v_status_t v_png_open(const char *path)
     return ST_SUCCESS;
 }
 
-#include <stdio.h>
+static v_status_t v_jpeg_open(const char *path)
+{
+    v_status_t status = ST_JPEG_OPEN_FAILED;
+    struct jpeg_decompress_struct cinfo;
+    struct jpeg_error_mgr jerr;
+
+    FILE *infile = fopen(path, "rb");
+    ERR_RET (!infile, "fopen");
+
+    cinfo.err = jpeg_std_error(&jerr);
+    jpeg_create_decompress(&cinfo);
+    jpeg_stdio_src(&cinfo, infile);
+    jpeg_read_header(&cinfo, TRUE);
+    jpeg_start_decompress(&cinfo);
+
+    int width = cinfo.output_width;
+    int height = cinfo.output_height;
+    int row_stride = cinfo.output_width * cinfo.output_components; // RGBの場合、1ピクセルあたり3バイト
+
+    uint8_t *buffer = malloc(height * row_stride);
+    ERR_RET(!buffer, "malloc");
+
+    while (cinfo.output_scanline < cinfo.output_height)
+    {
+        uint8_t *row_pointer[1]; // 現在のスキャンライン
+        row_pointer[0] = buffer + cinfo.output_scanline * row_stride;
+        jpeg_read_scanlines(&cinfo, row_pointer, 1);
+    }
+
+    // Cairoでサーフェスを作成（RGBデータをARGBに変換）
+    uint8_t *argb_data = malloc(width * height * 4); // ARGB8888形式
+    for (int y = 0; y < height; y++)
+    {
+        for (int x = 0; x < width; x++)
+        {
+            uint8_t *src_pixel = &buffer[(y * width + x) * 3];
+            uint8_t *dst_pixel = &argb_data[(y * width + x) * 4];
+            dst_pixel[0] = src_pixel[2]; // Blue
+            dst_pixel[1] = src_pixel[1]; // Green
+            dst_pixel[2] = src_pixel[0]; // Red
+            dst_pixel[3] = 0xFF;         // Alpha
+        }
+    }
+
+    if (surface)
+    {
+        cairo_surface_destroy(surface);
+    }
+    surface = cairo_image_surface_create_for_data(
+        argb_data,
+        CAIRO_FORMAT_ARGB32,
+        width,
+        height,
+        width * 4);
+    status = ST_SUCCESS;
+
+error_return:
+    jpeg_finish_decompress(&cinfo);
+    jpeg_destroy_decompress(&cinfo);
+    fclose(infile);
+    return status;
+}
+
 static int v_png_page(void) { return 0; }
 static v_status_t v_png_get_pixel(uint8_t *_data, int page, int rowstride, v_scale_t ctm)
 {

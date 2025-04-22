@@ -51,9 +51,11 @@ This project uses the following external tools and libraries:
 1. [LVGL](https://lvgl.io/): Licensed under the MIT License.
 2. [Verovio](https://www.verovio.org/): Licensed under the GNU Lesser General Public License (LGPL-3.0). Verovio is executed as a separate process and is not dynamically or statically linked with this software.
 3. [Cairo](https://www.cairographics.org/): Licensed under the LGPL-2.1 License.
-4. [MuPDF](https://mupdf.com/): Licensed under the AGPL-3 License. This project fully complies with the AGPL by ensuring any modifications and relevant usage of MuPDF are accompanied by source code disclosures.
+4. [MuPDF](https://mupdf.com/): Licensed under the AGPL-3 License. This project fully complies with the AGPL by ensuring any modifications and relevant usage of MuPDF are accompanied by source code disclosures. This means that the entire application is distributed under AGPL-3 and its source code is made available to users upon request.
 5. [librsvg](https://gitlab.gnome.org/GNOME/librsvg): Licensed under the LGPL-2.1 License.
 6. [cJSON](https://github.com/DaveGamble/cJSON): Licensed under the MIT License.
+7. [libjpeg-turbo](https://libjpeg-turbo.org/): Licensed under multiple compatible licenses, including the IJG License, the 3-Clause BSD License, and the zlib License. For detailed license information, refer to the LICENSE-libjpeg-turbo.md file provided with this application.
+For detailed license information, refer to the LICENSE-libjpeg-turbo.md file provided with this application.
 
 
 ## Contributing
