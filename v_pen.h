@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <cjson/cJSON.h>
 #include "v_common.h"
 
 typedef enum
@@ -78,4 +79,6 @@ v_status_t v_pen_init(lv_obj_t *parent, v_pen_ops_t *ops);
 v_pen_ops_t *v_pen_getops(void);
 v_stroke_data_t *all_strokes(void);
 
+cJSON *pen_to_json(v_pen_t * pen);
+v_pen_t *json_to_pen(cJSON *json);
 #endif

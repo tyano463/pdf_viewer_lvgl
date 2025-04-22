@@ -6,22 +6,11 @@
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
-
+#include <ctype.h>
 
 #include "v_common.h"
 #include "v_misc.h"
 #include <math.h>
-
-int directory_path(char *path, DIR *dir)
-{
-    char procpath[64];
-    int fd = dirfd(dir);
-    snprintf(procpath, 64, "/proc/self/fd/%d", fd);
-    int len = readlink(procpath, path, MAX_PATH - 1);
-    if (len < 0)
-        len = 0;
-    path[len] = '\0';
-}
 
 static char b2c(const uint8_t b)
 {
@@ -81,7 +70,8 @@ float distance(lv_point_t *a, lv_point_t *b)
     return sqrtf(d2);
 }
 
-int mkdir_p(const char *path, mode_t mode) {
+int mkdir_p(const char *path, mode_t mode)
+{
     char tmp[1024];
     char *p = NULL;
     size_t len;
@@ -91,11 +81,15 @@ int mkdir_p(const char *path, mode_t mode) {
     if (tmp[len - 1] == '/')
         tmp[len - 1] = '\0';
 
-    for (p = tmp + 1; *p; p++) {
-        if (*p == '/') {
+    for (p = tmp + 1; *p; p++)
+    {
+        if (*p == '/')
+        {
             *p = '\0';
-            if (mkdir(tmp, mode) != 0) {
-                if (errno != EEXIST) {
+            if (mkdir(tmp, mode) != 0)
+            {
+                if (errno != EEXIST)
+                {
                     perror("mkdir");
                     return -1;
                 }
@@ -104,12 +98,52 @@ int mkdir_p(const char *path, mode_t mode) {
         }
     }
 
-    if (mkdir(tmp, mode) != 0) {
-        if (errno != EEXIST) {
+    if (mkdir(tmp, mode) != 0)
+    {
+        if (errno != EEXIST)
+        {
             perror("mkdir");
             return -1;
         }
     }
 
     return 0;
+}
+
+bool ends_with_ignore_case(const char *str, const char *suffix)
+{
+    size_t len_str = strlen(str);
+    size_t len_suffix = strlen(suffix);
+    if (len_str < len_suffix)
+        return 0;
+
+    const char *str_ext = str + len_str - len_suffix;
+    while (*str_ext && *suffix)
+    {
+        if (tolower((unsigned char)*str_ext) != *suffix)
+        {
+            return false;
+        }
+        str_ext++;
+        suffix++;
+    }
+    return true;
+}
+
+bool file_exists(const char *path)
+{
+    struct stat st;
+
+    if (lstat(path, &st))
+    {
+        return false;
+    }
+
+    if (S_ISLNK(st.st_mode))
+    {
+        if (stat(path, &st))
+            return false;
+    }
+
+    return S_ISREG(st.st_mode);
 }

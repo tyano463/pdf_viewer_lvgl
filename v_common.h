@@ -48,9 +48,29 @@ enum {
     V_ANNOT_HIDE,
 };
 
+typedef uint8_t v_format_t;
+enum {
+    V_FORMAT_PDF,
+    V_FORMAT_SVG,
+    V_FORMAT_PNG,
+    V_FORMAT_JPEG,
+    V_FORMAT_MUSICXML,
+    V_FORMAT_MIDI,
+    V_FORMAT_MAX,
+};
+
+typedef struct {
+    float sx;
+    float sy;
+} v_scale_t;
+
 typedef enum
 {
     ST_SUCCESS,
+    ST_SETTING_LOAD_FAILED,
+    ST_SETTING_SAVE_FAILED,
+    ST_SETTING_PARSE_FAILED,
+    ST_SETTING_SERIALIZE_FAILED,
     ST_CREATE_CANVAS_FAILED,
     ST_LOG_INIT_FAILED,
     ST_LOG_WRITE_FAILED,

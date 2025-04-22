@@ -18,5 +18,10 @@
 /gdb.txt
 /liblvgl.a
 
+/GPATH
+/GRTAGS
+/GTAGS
+
+
 ## resources
 /assets_*.c

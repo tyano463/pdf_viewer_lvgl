@@ -1,4 +1,7 @@
 bin_PROGRAMS = pdf_viewer_lvgl
+PATCH_FILE = lvgl.patch
+PATCH_STAMP = lvgl/.patched
+
 LVGL_SOURCES = \
 $(shell find lvgl/src -name "*.c") \
 $(shell find lvgl/src -name "*.cpp")
@@ -22,18 +25,23 @@ pdf_viewer_lvgl_SOURCES = main.c \
 	v_assets_list.c \
 	v_canvas.c \
 	v_settings.c \
-	v_pen.c
+	v_pen.c \
+	v_png.c \
+	v_jpeg.c \
+	v_midi.c \
+	v_musicxml.c \
+	v_svg.c
 
 C_INC = \
 	-I. \
     -I$(srcdir)/lvgl \
     -I$(srcdir)/lvgl/src
 
-AM_CFLAGS = $(C_INC) -g -O0 -DHIDE_HIDDEN_FILES=1 `pkg-config librsvg-2.0 cairo --cflags`
-AM_CXXFLAGS = $(C_INC) -g -O0 -DHIDE_HIDDEN_FILES=1 `pkg-config librsvg-2.0 cairo --cflags` 
+AM_CFLAGS = $(C_INC) -g -O0 -DHIDE_HIDDEN_FILES=1 `pkg-config librsvg-2.0 cairo libcjson --cflags`
+AM_CXXFLAGS = $(C_INC) -g -O0 -DHIDE_HIDDEN_FILES=1 `pkg-config librsvg-2.0 cairo libcjson --cflags` 
 #AM_CFLAGS = $(C_INC) -g -O0 -fsanitize=address
 #AM_CPPFLAGS = $(C_INC) -g -O0 -fsanitize=address
-AM_LDFLAGS = -lmupdf -lX11 -lstdc++ -lm `pkg-config librsvg-2.0 cairo --libs`
+AM_LDFLAGS = -lmupdf -lX11 -lstdc++ -lm `pkg-config librsvg-2.0 cairo libcjson --libs`
 
 ASSETS = hamburger pen24 close_button
 ASSET_SRCS = $(addprefix assets_, $(addsuffix _bmp.c, $(ASSETS)))
@@ -48,8 +56,12 @@ EXTRA_DIST = assets/hamburger.bmp \
 SOURCES = $(pdf_viewer_lvgl_SOURCES)
 am_pdf_viewer_lvgl_OBJECTS = $(pdf_viewer_lvgl_SOURCES:.c=.o)
 
+$(PATCH_STAMP):
+	@echo "Applying patch to lvgl..."
+	patch -d lvgl -p1 < $(PATCH_FILE) && touch $(PATCH_STAMP)
+
 pdf_viewer_lvgl_LDADD = liblvgl.a
-$(STATIC_LIB): $(liblvgl_a_OBJECTS)
+$(STATIC_LIB): $(PATCH_STAMP) $(liblvgl_a_OBJECTS)
 	$(AR) rcs $(STATIC_LIB) $(liblvgl_a_OBJECTS)
 
 assets_%_bmp.c: assets/%.bmp

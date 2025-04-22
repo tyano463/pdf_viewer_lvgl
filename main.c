@@ -11,18 +11,25 @@
 #include "v_misc.h"
 #include "v_canvas.h"
 #include "v_icon.h"
+#include "v_settings.h"
+#include "v_jpeg.h"
+#include "v_musicxml.h"
+#include "v_png.h"
+#include "v_svg.h"
+#include "v_midi.h"
 
 #define PDF_FILE "/usr/share/sample.pdf"
 #define SWIPE_MARGIN (50)
 
-#define WINDOW_TITLE "A Title"
+#define WINDOW_TITLE "PDF Viewer(LVGL)"
 
 static v_status_t disp_init(void);
-static v_status_t show_pdf(lv_obj_t *parent, const char *path);
+v_status_t init_draw_ops(void);
 static void file_opened(char *);
 static void mode_changed(v_mode_t);
-static const char *get_last_opened(void);
 static void pdf_callback(lv_event_t *e);
+static v_format_t get_format(const char *path);
+static v_status_t show_page(v_format_t format, const char *path, uint16_t page);
 
 static lv_display_t *disp;
 static lv_color_t *pdf_data;
@@ -31,42 +38,54 @@ static v_menu_ops_t menu_ops;
 static v_pen_ops_t pen_ops;
 static bool initialized = false;
 static v_mode_t mode;
+static lv_point_t touch_point;
+static v_draw_ops_t *(*draw_ops[V_FORMAT_MAX])(void);
 
 int main(int argc, char **argv)
 {
     v_status_t status;
-    const char *pdf_path;
+    const char *path;
+    uint16_t page;
     v_log_init();
 
     lv_init();
 
-    d("");
     status = disp_init();
     ERR_RETn(status != ST_SUCCESS);
 
-    d("");
     lv_obj_t *scr = lv_screen_active();
     lv_obj_remove_flag(scr, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_SCROLL_ELASTIC | LV_OBJ_FLAG_SCROLL_MOMENTUM);
 
-    d("");
     status = v_init_canvas(scr);
-    ERR_RETn(status != ST_SUCCESS);
+    ERR_RET(status != ST_SUCCESS, "init canvas");
+
+    status = init_draw_ops();
 
     menu_ops.file_opened = file_opened;
-    d("");
     status = v_menu_init(scr, &menu_ops);
-    d("");
+    ERR_RET(status != ST_SUCCESS, "menu init");
+
+    status = v_load_settings();
+    v_settings_ops_t *settings = v_get_settings_ops();
+    if (status == ST_SUCCESS)
+    {
+        path = settings->get_path();
+        page = settings->get_page();
+    }
+    else
+    {
+        path = PDF_FILE;
+        page = 0;
+    }
+
+    v_format_t format = get_format(path);
+    ERR_RET(format >= V_FORMAT_MAX, "get format @%s", path);
+    status = show_page(format, path, page);
+    ERR_RETn(status != ST_SUCCESS);
 
     pen_ops.mode = mode_changed;
-    d("");
     status = v_pen_init(scr, &pen_ops);
     d("pen init %d", status);
-
-    pdf_path = get_last_opened();
-    d("path: %s", pdf_path);
-    status = show_pdf(scr, pdf_path);
-    ERR_RETn(status != ST_SUCCESS);
-    d("show_pdf:%d", status);
 
     v_set_touch_callback(pdf_callback);
 
@@ -79,7 +98,15 @@ error_return:
     return status;
 }
 
-static lv_point_t touch_point;
+v_status_t init_draw_ops(void)
+{
+    draw_ops[V_FORMAT_JPEG] = v_jpeg_get_ops;
+    draw_ops[V_FORMAT_MIDI] = v_midi_get_ops;
+    draw_ops[V_FORMAT_MUSICXML] = v_musicxml_get_ops;
+    draw_ops[V_FORMAT_PDF] = v_pdf_get_ops;
+    draw_ops[V_FORMAT_PNG] = v_png_get_ops;
+    draw_ops[V_FORMAT_SVG] = v_svg_get_ops;
+}
 
 static void pdf_callback(lv_event_t *e)
 {
@@ -132,22 +159,55 @@ static void pdf_callback(lv_event_t *e)
     }
 }
 
-static v_status_t show_pdf(lv_obj_t *parent, const char *path)
+static v_status_t disp_init(void)
 {
-    static lv_color_t *pdf_data;
+    extern lv_image_dsc_t mouse_cursor_icon;
+    disp = lv_x11_window_create(WINDOW_TITLE, WIDTH, HEIGHT);
+    if (disp)
+        lv_x11_inputs_create(disp, &mouse_cursor_icon);
+    return (disp) ? ST_SUCCESS : ST_DISPLAY_INIT_FAILED;
+}
+
+static void file_opened(char *path)
+{
+    v_status_t status;
+    v_format_t format = get_format(path);
+    status = show_page(format, path, 0);
+    ERR_RET(status != ST_SUCCESS, "show page %d %d @%s", format, 0, path);
+error_return:
+    return;
+}
+
+static void mode_changed(v_mode_t _mode)
+{
+    mode = _mode;
+}
+
+static v_draw_ops_t *get_ops(v_format_t format)
+{
+    return draw_ops[format]();
+}
+
+static v_status_t show_page(v_format_t format, const char *path, uint16_t page)
+{
+    d("format:%d", format);
+    v_draw_ops_t *ops = get_ops(format);
+
+    static lv_color_t *data;
+
     v_status_t status = ST_PDF_OPEN_FAILED;
     int w, h, stride;
-    status = v_pdf_init();
+    status = ops->init();
     ERR_RET(status != ST_SUCCESS, "pdf init failed");
 
-    status = v_pdf_open(path);
+    status = ops->open(path);
     ERR_RET(status != ST_SUCCESS, "pdf open failed");
 
-    status = v_pdf_getsize(&w, &h);
+    status = ops->size(&w, &h);
     ERR_RETn(status != ST_SUCCESS);
 
     pdf_data = calloc(h * w * 3, 1);
-    status = v_pdf_alloc_pixel_data((uint8_t *)pdf_data, 0, w * 3, (pdf_scale_t){1, 1});
+    status = ops->pixel((uint8_t *)pdf_data, 0, w * 3, (v_scale_t){1, 1});
     ERR_RET(status != ST_SUCCESS, "v_pdf_alloc_pixel_data");
 
     size_t size = w * h * sizeof(lv_color_t);
@@ -165,26 +225,31 @@ error_return:
     return status;
 }
 
-static v_status_t disp_init(void)
+static v_format_t get_format(const char *path)
 {
-    extern lv_image_dsc_t mouse_cursor_icon;
-    disp = lv_x11_window_create(WINDOW_TITLE, WIDTH, HEIGHT);
-    if (disp)
-        lv_x11_inputs_create(disp, &mouse_cursor_icon);
-    return (disp) ? ST_SUCCESS : ST_DISPLAY_INIT_FAILED;
-}
+    if (!file_exists(path))
+        return V_FORMAT_MAX;
 
-static void file_opened(char *path)
-{
-    show_pdf(lv_screen_active(), path);
-}
+    if (ends_with_ignore_case(path, ".pdf"))
+        return V_FORMAT_PDF;
+    if (ends_with_ignore_case(path, ".jpeg"))
+        return V_FORMAT_JPEG;
+    if (ends_with_ignore_case(path, ".jpg"))
+        return V_FORMAT_JPEG;
+    if (ends_with_ignore_case(path, ".png"))
+        return V_FORMAT_PNG;
+    if (ends_with_ignore_case(path, ".svg"))
+        return V_FORMAT_SVG;
+    if (ends_with_ignore_case(path, ".mxl"))
+        return V_FORMAT_MUSICXML;
+    if (ends_with_ignore_case(path, ".xml"))
+        return V_FORMAT_MUSICXML;
+    if (ends_with_ignore_case(path, ".musicxml"))
+        return V_FORMAT_MUSICXML;
+    if (ends_with_ignore_case(path, ".mid"))
+        return V_FORMAT_MIDI;
+    if (ends_with_ignore_case(path, ".midi"))
+        return V_FORMAT_MIDI;
 
-static void mode_changed(v_mode_t _mode)
-{
-    mode = _mode;
-}
-
-static const char *get_last_opened(void)
-{
-    return PDF_FILE;
+    return V_FORMAT_MAX;
 }

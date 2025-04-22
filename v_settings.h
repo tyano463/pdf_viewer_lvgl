@@ -13,13 +13,25 @@ typedef struct str_v_settings
     v_annot_display_t annot;
 } v_settings_t;
 
+typedef struct str_v_settings_ops
+{
+    void (*set_path)(const char *path);
+    const char *(*get_path)(void);
+    void (*set_page)(uint16_t page);
+    uint16_t (*get_page)(void);
+    void (*set_annot_mode)(v_annot_display_t mode);
+    v_annot_display_t (*get_annot_mode)(void);
+    void (*set_pen)(const v_pen_t *pen);
+    v_pen_t *(*get_pen)(void);
+} v_settings_ops_t;
+
+#define V_S_ITEM_LAST_PATH "last_path"
+#define V_S_ITEM_LAST_PAGE "last_page"
+#define V_S_ITEM_LAST_PEN "last_pen"
+#define V_S_ITEM_ANNOT "annot"
+
 v_status_t v_load_settings(void);
-const char *v_last_open_file(void);
-uint16_t *v_last_open_page(void);
-v_status_t v_last_open_pen(v_pen_t* pen);
-v_annot_display_t v_last_display_annot(void);
 v_status_t v_save_settings(void);
-void v_set_pen(v_pen_t* pen);
-void v_set_page(uint16_t page);
-void v_set_path(const char *path);
+v_settings_ops_t *v_get_settings_ops(void);
+
 #endif

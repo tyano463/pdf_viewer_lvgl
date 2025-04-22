@@ -1,5 +1,5 @@
 AC_PREREQ([2.69])
-AC_INIT([PdfViewerLVGL], [1.0], [your-email@example.com])
+AC_INIT([PdfViewerLVGL], [1.0], [mushoku@msn.com])
 AM_INIT_AUTOMAKE([foreign -Wno-portability no-dependencies])
 
 AC_CANONICAL_HOST

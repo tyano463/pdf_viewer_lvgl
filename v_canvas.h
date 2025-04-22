@@ -13,6 +13,16 @@ typedef struct str_v_image
     lv_color_format_t format;
 } v_image_t;
 
+typedef struct str_v_draw_ops
+{
+    v_status_t (*init)(void);
+    v_status_t (*open)(const char *path);
+    int (*pagenum)(void);
+    v_status_t (*size)(int *width, int *height);
+    v_status_t (*pixel)(uint8_t *data, int page, int rowstride, v_scale_t ctm);
+    void (*free)(void);
+} v_draw_ops_t;
+
 v_status_t v_init_canvas(lv_obj_t *parent);
 v_status_t v_show_image(v_image_t *image);
 void v_set_touch_callback(lv_event_cb_t cb);

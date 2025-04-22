@@ -65,8 +65,8 @@ void lv_example_file_explorer_1(void)
     lv_file_explorer_set_quick_access_path(file_explorer, LV_EXPLORER_HOME_DIR, home_dir);
     char video_dir[LV_FS_MAX_PATH_LENGTH];
     strcpy(video_dir, home_dir);
-    strcat(video_dir, "/Videos");
-    lv_file_explorer_set_quick_access_path(file_explorer, LV_EXPLORER_VIDEO_DIR, video_dir);
+    strcat(video_dir, "/Downloads");
+    lv_file_explorer_set_quick_access_path(file_explorer, LV_EXPLORER_DOWNLOADS_DIR, video_dir);
     char picture_dir[LV_FS_MAX_PATH_LENGTH];
     strcpy(picture_dir, home_dir);
     strcat(picture_dir, "/Pictures");
