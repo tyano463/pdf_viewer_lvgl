@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <errno.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <ctype.h>
 
@@ -148,3 +149,60 @@ bool file_exists(const char *path)
     return S_ISREG(st.st_mode);
 }
 
+char *execute_command(const char *command, ...)
+{
+    static char result[MAX_PATH] = {0};
+    char cmd[MAX_PATH];
+    va_list ap;
+    sprintf(cmd, "%s", command);
+
+    char *arg;
+    va_start(ap, command);
+
+    int i = 0;
+    while (arg = va_arg(ap, char *))
+    {
+        sprintf(&cmd[strlen(cmd)], " %s", arg);
+    }
+
+    va_end(ap);
+
+    FILE *pipe = popen(cmd, "r");
+    if (!pipe)
+    {
+        perror("popen failed");
+        return NULL;
+    }
+
+    i = 0;
+    while (fgets(result, sizeof(result), pipe))
+        ;
+
+    int status = pclose(pipe);
+    if (status == -1)
+    {
+        perror("pclose failed");
+        return NULL;
+    }
+    else if (WEXITSTATUS(status) != 0)
+    {
+        fprintf(stderr, "Command failed with exit code %d\n", WEXITSTATUS(status));
+        return NULL;
+    }
+
+    return result;
+}
+
+size_t get_file_size(const char *file)
+{
+    size_t size = 0;
+    struct stat st;
+    ERR_RETn(stat(file, &st));
+
+    if (S_ISREG(st.st_mode))
+    {
+        size = st.st_size;
+    }
+error_return:
+    return size;
+}

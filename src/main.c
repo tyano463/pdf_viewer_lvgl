@@ -238,6 +238,7 @@ static v_status_t show_page(v_format_t format, const char *path, uint16_t page)
 {
     d("format:%d", format);
     v_draw_ops_t *ops = get_ops(format);
+    ERR_RET(!ops || !ops->init || !ops->open || !ops->size || !ops->pixel, "get ops %p", ops);
 
     v_status_t status = ST_PDF_OPEN_FAILED;
     int w, h, stride;
