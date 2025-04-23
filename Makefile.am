@@ -1,6 +1,7 @@
 bin_PROGRAMS = pdf_viewer_lvgl
 PATCH_FILE = lvgl.patch
 PATCH_STAMP = lvgl/.patched
+AUTOMAKE_OPTIONS = subdir-objects
 
 LVGL_SOURCES = \
 $(shell find lvgl/src -name "*.c") \
@@ -14,26 +15,25 @@ am_liblvgl_a_OBJECTS = $(LVGL_SOURCES:.c=.o) $(LVGL_SOURCES:.cpp=.o)
 
 pdf_viewer_lvgl_LDADD = $(STATIC_LIB)
 
-pdf_viewer_lvgl_SOURCES = main.c \
-	v_mouse_cursor.c \
-	v_menu.c \
-	v_pdf.c \
-	v_log.c \
-	v_file.c \
-	v_misc.c \
-	v_icon.c \
-	v_assets_list.c \
-	v_canvas.c \
-	v_settings.c \
-	v_pen.c \
-	v_png.c \
-	v_jpeg.c \
-	v_midi.c \
-	v_musicxml.c \
-	v_svg.c
+pdf_viewer_lvgl_SOURCES = src/main.c \
+	src/v_mouse_cursor.c \
+	src/v_menu.c \
+	src/v_pdf.c \
+	src/v_log.c \
+	src/v_file.c \
+	src/v_misc.c \
+	src/v_icon.c \
+	src/v_assets_list.c \
+	src/v_canvas.c \
+	src/v_settings.c \
+	src/v_pen.c \
+	src/v_png.c \
+	src/v_midi.c \
+	src/v_musicxml.c \
+	src/v_svg.c
 
 C_INC = \
-	-I. \
+	-Isrc \
     -I$(srcdir)/lvgl \
     -I$(srcdir)/lvgl/src
 

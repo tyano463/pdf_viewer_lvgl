@@ -12,7 +12,6 @@
 #include "v_canvas.h"
 #include "v_icon.h"
 #include "v_settings.h"
-#include "v_jpeg.h"
 #include "v_musicxml.h"
 #include "v_png.h"
 #include "v_svg.h"
