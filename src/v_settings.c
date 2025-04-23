@@ -4,15 +4,26 @@
 #include <sys/stat.h>
 #include <stdlib.h>
 
+#include "v_common.h"
 #include "v_settings.h"
 #include "v_misc.h"
 
 #define V_SETTINGS_FILE "settings.json"
 #define V_CONFIG_DIR "/.config/" APP_NAME
 
+#define PDF_FILE "/usr/share/sample.pdf"
+#define EN "en"
+#define JA "ja"
+#define FALLBACK_LANG EN
+
 #define DEFAULT_MODE (S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH)
 
 static void init_ops(void);
+
+static const char *s_valid_lang[] = {
+    JA,
+    EN,
+};
 
 static v_settings_t g_settings;
 static v_settings_ops_t g_ops;
@@ -220,6 +231,11 @@ static void set_annot_mode(v_annot_display_t mode)
 
 static const char *get_path(void)
 {
+    d("last_opened: %s", g_settings.last_opened);
+    if (!g_settings.last_opened[0])
+    {
+        return PDF_FILE;
+    }
     return g_settings.last_opened;
 }
 static uint16_t get_page(void)
@@ -235,15 +251,49 @@ static v_annot_display_t get_annot_mode(void)
     return g_settings.annot;
 }
 
+static void set_lang(const char *s)
+{
+    ERR_RETn(!s || !s[0]);
+
+    snprintf(g_settings.lang, sizeof(g_settings.lang), "%.*s", sizeof(g_settings.lang) - 1, s);
+
+error_return:
+    return;
+}
+
+static bool valid_lang(void)
+{
+    int n = ARRAY_SIZE(s_valid_lang);
+    for (int i = 0; i < n; i++)
+    {
+        if (strcmp(g_settings.lang, s_valid_lang[i]) == 0)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+static const char *get_lang(void)
+{
+    if (valid_lang())
+    {
+        return g_settings.lang;
+    }
+    return FALLBACK_LANG;
+}
+
 static void init_ops(void)
 {
     g_ops.set_page = set_page;
     g_ops.set_path = set_path;
     g_ops.set_annot_mode = set_annot_mode;
     g_ops.set_pen = set_pen;
+    g_ops.set_lang = set_lang;
 
     g_ops.get_page = get_page;
     g_ops.get_path = get_path;
     g_ops.get_pen = get_pen;
     g_ops.get_annot_mode = get_annot_mode;
+    g_ops.get_lang = get_lang;
 }

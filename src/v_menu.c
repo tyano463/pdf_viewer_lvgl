@@ -1,18 +1,24 @@
+#include <cjson/cJSON.h>
 #include "v_menu.h"
 #include "v_icon.h"
 #include "v_file.h"
 #include "v_misc.h"
+#include "v_assets_list.h"
+#include "v_settings.h"
+
+#define MENU_JSON "menu"
 
 extern unsigned char assets_hamburger_bmp[];
 
-static void create_menu(lv_obj_t *parent);
+static cJSON *load_menu_settings(void);
+static void create_menu(lv_obj_t *parent, cJSON *json);
 static void hide_menu(void);
 static void show_menu(void);
 
 static v_menu_t *_menu;
 static v_menu_ops_t *_ops;
 
-static void file_opend(char *path)
+static void open_file(const char *path)
 {
     d("%s", path);
     if (_ops && _ops->file_opened)
@@ -20,6 +26,31 @@ static void file_opend(char *path)
         _ops->file_opened(path);
     }
 }
+
+static void save_file(const char *_dummy)
+{
+    (void)_dummy;
+
+    if (_ops && _ops->save)
+    {
+        _ops->save();
+    }
+}
+static void save_file_as(const char *file)
+{
+    if (_ops && _ops->save_as)
+    {
+        _ops->save_as(file);
+    }
+}
+static void export_pdf(const char *file)
+{
+    if (_ops && _ops->export_pdf)
+    {
+        _ops->export_pdf(file);
+    }
+}
+
 static void event_handler(lv_event_t *e)
 {
     d("clicked");
@@ -31,9 +62,9 @@ static void event_handler(lv_event_t *e)
     }
     else
     {
-        //        show_menu();
-        show_filer(file_opend);
+        show_menu();
     }
+    //        show_filer(file_opend);
 
 error_return:
     return;
@@ -92,7 +123,8 @@ v_status_t v_menu_init(lv_obj_t *parent, v_menu_ops_t *ops)
 
     create_button(parent);
 
-    create_menu(parent);
+    cJSON *json = load_menu_settings();
+    create_menu(parent, json);
 
     _ops = ops;
     status = ST_SUCCESS;
@@ -141,8 +173,58 @@ static void back_event_handler(lv_event_t *e)
     }
 }
 
-void create_menu(lv_obj_t *parent)
+static cJSON *get_lang_json(void)
 {
+    v_settings_ops_t *ops = v_get_settings_ops();
+    const char *lang = ops->get_lang();
+    const char *json_str = get_json_ptr(lang);
+    return cJSON_Parse(json_str);
+}
+
+static const char *translate(cJSON *lang, const char *key)
+{
+    cJSON *label = cJSON_GetObjectItem(lang, key);
+    if (cJSON_IsString(label))
+    {
+        d("v: %s", label->valuestring);
+        return label->valuestring;
+    }
+    else
+    {
+        d("");
+        return key;
+    }
+}
+
+static void button_callback(lv_event_t *e)
+{
+    const char *key = (const char *)lv_event_get_user_data(e);
+    d("key: %s", key);
+    if (strcmp(key, "open_file") == 0)
+    {
+        show_filer(open_file, V_FILE_DIALOG_OPEN);
+    }
+    else if (strcmp(key, "save_file") == 0)
+    {
+        save_file(NULL);
+    }
+    else if (strcmp(key, "save_file_as") == 0)
+    {
+        show_filer(save_file_as, V_FILE_DIALOG_SAVE);
+    }
+    else if (strcmp(key, "export_pdf") == 0)
+    {
+        show_filer(save_file_as, V_FILE_DIALOG_SAVE);
+    }
+
+    hide_menu();
+}
+
+static void create_menu(lv_obj_t *parent, cJSON *menu_json)
+{
+    cJSON *lang = get_lang_json();
+    d("menu:%p lang:%p", menu_json, lang);
+
     lv_obj_t *menu = lv_menu_create(parent);
     lv_menu_set_mode_root_back_button(menu, LV_MENU_ROOT_BACK_BUTTON_ENABLED);
     lv_obj_add_event_cb(menu, back_event_handler, LV_EVENT_CLICKED, menu);
@@ -153,30 +235,60 @@ void create_menu(lv_obj_t *parent)
     lv_obj_t *label;
 
     /*Create a sub page*/
-    lv_obj_t *sub_page = lv_menu_page_create(menu, NULL);
-
-    cont = lv_menu_cont_create(sub_page);
-    label = lv_label_create(cont);
-    lv_label_set_text(label, "Hello, I am hiding here");
+    //    lv_obj_t *sub_page = lv_menu_page_create(menu, NULL);
+    //
+    //    cont = lv_menu_cont_create(sub_page);
+    //    label = lv_label_create(cont);
+    //    lv_label_set_text(label, "Hello, I am hiding here");
 
     /*Create a main page*/
     lv_obj_t *main_page = lv_menu_page_create(menu, NULL);
 
-    cont = lv_menu_cont_create(main_page);
-    label = lv_label_create(cont);
-    lv_label_set_text(label, "Item 1");
+    cJSON *menu_section;
+    cJSON_ArrayForEach(menu_section, menu_json)
+    {
+        const char *section_name = menu_section->string;
+        d("Section name: %s", section_name);
 
-    cont = lv_menu_cont_create(main_page);
-    label = lv_label_create(cont);
-    lv_label_set_text(label, "Item 2");
+        if (!cJSON_IsArray(menu_section))
+            continue;
 
-    cont = lv_menu_cont_create(main_page);
-    label = lv_label_create(cont);
-    lv_label_set_text(label, "Item 3 (Click me!)");
-    lv_menu_set_load_page_event(menu, cont, sub_page);
+        cJSON *entry = NULL;
+        cJSON_ArrayForEach(entry, menu_section)
+        {
+            cJSON *item = cJSON_GetObjectItem(entry, "item");
+            if (cJSON_IsString(item))
+            {
+                d(" - item: %s", item->valuestring);
+                cont = lv_menu_cont_create(main_page);
+                label = lv_label_create(cont);
+                const char *text = translate(lang, item->valuestring);
+                lv_label_set_text(label, text);
+                lv_obj_add_flag(cont, LV_OBJ_FLAG_CLICKABLE);
+                lv_obj_add_event_cb(cont, button_callback, LV_EVENT_SINGLE_CLICKED, item->valuestring);
+            }
+        }
+    }
+    //    lv_label_set_text(label, "Item 1");
+    //
+    //    cont = lv_menu_cont_create(main_page);
+    //    label = lv_label_create(cont);
+    //    lv_label_set_text(label, "Item 2");
+    //
+    //    cont = lv_menu_cont_create(main_page);
+    //    label = lv_label_create(cont);
+    //    lv_label_set_text(label, "Item 3 (Click me!)");
+    //    lv_menu_set_load_page_event(menu, cont, sub_page);
 
     lv_menu_set_page(menu, main_page);
 
     _menu->menu = menu;
     hide_menu();
+}
+
+static cJSON *load_menu_settings(void)
+{
+    const char *menu_str = get_json_ptr(MENU_JSON);
+    d("menu:%p", menu_str);
+    return cJSON_Parse(menu_str);
 }

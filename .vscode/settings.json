@@ -25,7 +25,11 @@
         "format": "c",
         "v_canvas.h": "c",
         "v_icon.h": "c",
-        "v_settings.h": "c"
+        "v_settings.h": "c",
+        "v_musicxml.h": "c",
+        "cstdlib": "c",
+        "system_error": "cpp",
+        "regex": "cpp"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }

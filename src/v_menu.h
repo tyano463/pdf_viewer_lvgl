@@ -13,7 +13,10 @@ typedef struct str_v_menu
 
 typedef struct str_v_menu_ops
 {
-    void (*file_opened)(char *);
+    void (*file_opened)(const char *);
+    void (*save_as)(const char *);
+    void (*save)(void);
+    void (*export_pdf)(const char *);
 
 } v_menu_ops_t;
 

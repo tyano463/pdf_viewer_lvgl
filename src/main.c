@@ -17,14 +17,13 @@
 #include "v_svg.h"
 #include "v_midi.h"
 
-#define PDF_FILE "/usr/share/sample.pdf"
 #define SWIPE_MARGIN (50)
 
 #define WINDOW_TITLE "PDF Viewer(LVGL)"
 
+static void init(void);
 static v_status_t disp_init(void);
-v_status_t init_draw_ops(void);
-static void file_opened(char *);
+static void file_opened(const char *);
 static void mode_changed(v_mode_t);
 static void pdf_callback(lv_event_t *e);
 static v_format_t get_format(const char *path);
@@ -55,27 +54,19 @@ int main(int argc, char **argv)
     lv_obj_t *scr = lv_screen_active();
     lv_obj_remove_flag(scr, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_SCROLL_ELASTIC | LV_OBJ_FLAG_SCROLL_MOMENTUM);
 
+    (void)v_load_settings();
+
+    init();
+
     status = v_init_canvas(scr);
     ERR_RET(status != ST_SUCCESS, "init canvas");
 
-    status = init_draw_ops();
-
-    menu_ops.file_opened = file_opened;
     status = v_menu_init(scr, &menu_ops);
     ERR_RET(status != ST_SUCCESS, "menu init");
 
-    status = v_load_settings();
     v_settings_ops_t *settings = v_get_settings_ops();
-    if (status == ST_SUCCESS)
-    {
-        path = settings->get_path();
-        page = settings->get_page();
-    }
-    else
-    {
-        path = PDF_FILE;
-        page = 0;
-    }
+    path = settings->get_path();
+    page = settings->get_page();
 
     v_format_t format = get_format(path);
     ERR_RET(format >= V_FORMAT_MAX, "get format @%s", path);
@@ -97,8 +88,25 @@ error_return:
     return status;
 }
 
-v_status_t init_draw_ops(void)
+static void export_pdf(const char *file)
 {
+    d("%s", file);
+}
+static void save_current_file(void)
+{
+    d("");
+}
+static void save_as(const char *file)
+{
+    d("%s", file);
+}
+static void init(void)
+{
+    menu_ops.file_opened = file_opened;
+    menu_ops.export_pdf = export_pdf;
+    menu_ops.save = save_current_file;
+    menu_ops.save_as = save_as;
+
     draw_ops[V_FORMAT_JPEG] = v_jpeg_get_ops;
     draw_ops[V_FORMAT_MIDI] = v_midi_get_ops;
     draw_ops[V_FORMAT_MUSICXML] = v_musicxml_get_ops;
@@ -167,7 +175,7 @@ static v_status_t disp_init(void)
     return (disp) ? ST_SUCCESS : ST_DISPLAY_INIT_FAILED;
 }
 
-static void file_opened(char *path)
+static void file_opened(const char *path)
 {
     v_status_t status;
     v_format_t format = get_format(path);

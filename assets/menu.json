@@ -1,0 +1,16 @@
+{
+  "file": [
+    {
+      "item": "open_file"
+    },
+    {
+      "item": "save_file"
+    },
+    {
+      "item": "save_file_as"
+    },
+    {
+      "item": "export_pdf"
+    }
+  ]
+}

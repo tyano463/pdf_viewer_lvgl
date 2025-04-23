@@ -6,8 +6,14 @@
 #define ASSETS_LIST \
     ENTRY(hamburger) \
     ENTRY(pen24) \
-    ENTRY(close_button) \
+    ENTRY(close_button)
+
+#define JSON_LIST \
+    JENTRY(menu) \
+    JENTRY(ja) \
+    JENTRY(en)
 
 uint8_t *get_asset_ptr(const char *name);
+uint8_t *get_json_ptr(const char *name);
 
 #endif

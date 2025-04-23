@@ -45,16 +45,21 @@ AM_LDFLAGS = -lmupdf -lX11 -lstdc++ -lm `pkg-config librsvg-2.0 cairo libcjson l
 
 ASSETS = hamburger pen24 close_button
 ASSET_SRCS = $(addprefix assets_, $(addsuffix _bmp.c, $(ASSETS)))
+JSON = menu ja en
+JSON_SRCS = $(addprefix assets_, $(addsuffix _json.c, $(JSON)))
 
-pdf_viewer_lvgl_SOURCES += $(ASSET_SRCS)
+pdf_viewer_lvgl_SOURCES += $(ASSET_SRCS) $(JSON_SRCS)
 #BUILT_SOURCES = $(pdf_viewer_lvgl_SOURCES)
 
 EXTRA_DIST = assets/hamburger.bmp \
 	assets/pen24.bmp \
-	assets/close_button.bmp
+	assets/close_button.bmp \
+	assets/menu.json \
+	assets/ja.json \
+	assets/en.json
 
 SOURCES = $(pdf_viewer_lvgl_SOURCES)
-am_pdf_viewer_lvgl_OBJECTS = $(pdf_viewer_lvgl_SOURCES:.c=.o)
+am_pdf_viewer_lvgl_OBJECTS = $(PATCH_STAMP) $(pdf_viewer_lvgl_SOURCES:.c=.o)
 
 $(PATCH_STAMP):
 	@echo "Applying patch to lvgl..."
@@ -65,4 +70,7 @@ $(STATIC_LIB): $(PATCH_STAMP) $(liblvgl_a_OBJECTS)
 	$(AR) rcs $(STATIC_LIB) $(liblvgl_a_OBJECTS)
 
 assets_%_bmp.c: assets/%.bmp
+	xxd -i $< > $@
+
+assets_%_json.c: assets/%.json
 	xxd -i $< > $@

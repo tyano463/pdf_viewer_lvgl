@@ -8,8 +8,14 @@
 #define WIDTH 1024
 #define HEIGHT 768
 
+#ifndef min
 #define min(a, b) (((b) < (a)) ? (b) : (a))
 #define max(a, b) (((b) > (a)) ? (b) : (a))
+#endif
+
+#ifndef ARRAY_SIZE
+#define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
+#endif
 
 #define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 
@@ -43,13 +49,15 @@ typedef enum
 } v_mode_t;
 
 typedef uint8_t v_annot_display_t;
-enum {
+enum
+{
     V_ANNOT_SHOW,
     V_ANNOT_HIDE,
 };
 
 typedef uint8_t v_format_t;
-enum {
+enum
+{
     V_FORMAT_PDF,
     V_FORMAT_SVG,
     V_FORMAT_PNG,
@@ -59,7 +67,8 @@ enum {
     V_FORMAT_MAX,
 };
 
-typedef struct {
+typedef struct
+{
     float sx;
     float sy;
 } v_scale_t;
