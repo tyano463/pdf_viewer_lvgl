@@ -56,7 +56,7 @@ This project uses the following external tools and libraries:
 6. [cJSON](https://github.com/DaveGamble/cJSON): Licensed under the MIT License.
 7. [libjpeg-turbo](https://libjpeg-turbo.org/): Licensed under multiple compatible licenses, including the IJG License, the 3-Clause BSD License, and the zlib License. For detailed license information, refer to the LICENSE-libjpeg-turbo.md file provided with this application.
 For detailed license information, refer to the LICENSE-libjpeg-turbo.md file provided with this application.
-
+8. [libsmf](https://sourceforge.net/projects/libsmf/): Licensed under the BSD-2-Clause.
 
 ## Contributing
 
