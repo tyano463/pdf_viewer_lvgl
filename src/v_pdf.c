@@ -63,7 +63,7 @@ static v_status_t v_pdf_open(const char *path)
 {
     v_status_t status;
 
-    add_ink_annot_sample(path);
+    // add_ink_annot_sample(path);
 
     fz_try(pdf->ctx)
         pdf->doc = fz_open_document(pdf->ctx, path);
@@ -298,37 +298,10 @@ static v_status_t v_pdf_alloc_pixel_data(uint8_t *data, int page, int rowstride,
     v_pdf_release_pixel_data();
 
 #if NOANNOT
-    fz_context *ctx = pdf->ctx;
-    fz_document *doc = pdf->doc;
-    fz_rect bounds;
-    fz_irect bbox;
-    fz_page *fzpage = NULL;
-    fz_display_list *list = NULL;
-    fz_device *dev = NULL;
-    fzpage = fz_load_page(ctx, doc, page);
-
-    // バウンディングボックス
-    bounds = fz_bound_page(ctx, fzpage);
-    fz_transform_rect(bounds, ctm);
-    bbox = fz_round_rect(bounds);
-
-    // 注釈を除いたページ内容を display list にレンダリング
-    list = fz_new_display_list(ctx, bounds);
-    dev = fz_new_list_device(ctx, list);
-    fz_run_page_contents(ctx, fzpage, dev, ctm, NULL); // ← 注釈なし
-    fz_close_device(ctx, dev);
-    fz_drop_device(ctx, dev);
-    dev = NULL;
-
-    // pixmap を作成
-    pix = fz_new_pixmap_with_bbox(ctx, cs, bbox, NULL, 0);
-    fz_clear_pixmap_with_value(ctx, pix, 0xff); // 白背景
-
-    dev = fz_new_draw_device(ctx, ctm, pix);
-    fz_run_display_list(ctx, list, dev, fz_identity, bounds, NULL);
-    fz_close_device(ctx, dev);
+    // exclude annotation
+    pix = fz_new_pixmap_from_page_contents(pdf->ctx, pdf->page, ctm, cs, 0);
 #else
-
+    // include annotation
     pix = fz_new_pixmap_from_page_number(pdf->ctx, pdf->doc, page, ctm, cs, 0);
 #endif
 
