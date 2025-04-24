@@ -57,6 +57,7 @@ This project uses the following external tools and libraries:
 7. [libjpeg-turbo](https://libjpeg-turbo.org/): Licensed under multiple compatible licenses, including the IJG License, the 3-Clause BSD License, and the zlib License. For detailed license information, refer to the LICENSE-libjpeg-turbo.md file provided with this application.
 For detailed license information, refer to the LICENSE-libjpeg-turbo.md file provided with this application.
 8. [libsmf](https://sourceforge.net/projects/libsmf/): Licensed under the BSD-2-Clause.
+9. [qpdf](https://github.com/qpdf/qpdf): Licensed under the  Apache-2.0 license. qpdf is executed as a separate process and is not dynamically or statically linked with this software.
 
 ## Contributing
 

@@ -16,5 +16,5 @@ bool ends_with_ignore_case(const char *str, const char *suffix);
 bool file_exists(const char *path);
 char *execute_command(const char *command, ...);
 size_t get_file_size(const char *file);
-
+const char *next_file_name(const char *orig);
 #endif

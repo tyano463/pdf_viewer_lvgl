@@ -206,3 +206,54 @@ size_t get_file_size(const char *file)
 error_return:
     return size;
 }
+
+const char *next_file_name(const char *orig)
+{
+    const char *name = NULL;
+    ERR_RETn(!orig);
+    int len = strlen(orig);
+    int nlen;
+    ERR_RETn(!len);
+    const char *p = NULL;
+    char *_name;
+
+    for (int i = len - 1; i >= 0; i--)
+    {
+        if (orig[i] == '.')
+        {
+            if (i > 2)
+            {
+                p = &orig[i];
+            }
+            break;
+        }
+    }
+    ERR_RETn(!p);
+
+    bool has_suffix = false;
+    if (p[-2] == '_')
+    {
+        if ('0' <= p[-1] && p[-1] <= '8')
+        {
+            has_suffix = true;
+        }
+    }
+
+    nlen = has_suffix ? len : len + 2;
+
+    _name = malloc(nlen + 1);
+    ERR_RETn(!_name);
+    strcpy(_name, orig);
+    int offset = p - orig;
+    if (!has_suffix)
+    {
+        _name[offset] = '_';
+        offset += 2;
+    }
+    memcpy(&_name[offset], p, len - (p - orig));
+    _name[offset - 1] = has_suffix ? (p[-1] + 1) : '1';
+
+    name = _name;
+error_return:
+    return name;
+}

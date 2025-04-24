@@ -21,6 +21,7 @@ typedef struct str_v_draw_ops
     v_status_t (*size)(int *width, int *height);
     v_status_t (*pixel)(uint8_t *data, int page, int rowstride, v_scale_t ctm);
     void (*free)(void);
+    v_status_t (*annots)(void);
 } v_draw_ops_t;
 
 v_status_t v_init_canvas(lv_obj_t *parent);

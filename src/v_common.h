@@ -47,6 +47,13 @@ typedef enum
     MODE_NORMAL,
     MODE_PEN,
 } v_mode_t;
+typedef uint8_t v_show_mode_t;
+enum {
+    V_SHOW_MODE_ALL,
+    V_SHOW_MODE_NO_ANNOT,
+    V_SHOW_MODE_SCORE_ONLY,
+    v_SHOW_MODE_MAX,
+};
 
 typedef uint8_t v_annot_display_t;
 enum
@@ -88,6 +95,7 @@ typedef enum
     ST_PDF_OPEN_FAILED,
     ST_PDF_CONTEXT_CREAT_FAILED,
     ST_PDF_DOCUMENT_OPEN_FAILED,
+    ST_PDF_ANNOTATION_FAILED,
     ST_PNG_OPEN_FAILED,
     ST_MXL_OPEN_FAILED,
     ST_SVG_OPEN_FAILED,

@@ -100,12 +100,18 @@ static void save_as(const char *file)
 {
     d("%s", file);
 }
+
+static void show_mode(v_show_mode_t mode)
+{
+}
+
 static void init(void)
 {
     menu_ops.file_opened = file_opened;
     menu_ops.export_pdf = export_pdf;
     menu_ops.save = save_current_file;
     menu_ops.save_as = save_as;
+    menu_ops.show_mode = show_mode;
 
     draw_ops[V_FORMAT_JPEG] = v_jpeg_get_ops;
     draw_ops[V_FORMAT_MIDI] = v_midi_get_ops;
@@ -269,6 +275,11 @@ static v_status_t show_page(v_format_t format, const char *path, uint16_t page)
     image.width = w;
     image.size = w * h * 4;
     v_show_image(&image);
+
+    if (ops->annots)
+    {
+        ops->annots();
+    }
 
     status = ST_SUCCESS;
 error_return:

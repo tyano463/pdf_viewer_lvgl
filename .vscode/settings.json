@@ -29,7 +29,10 @@
         "v_musicxml.h": "c",
         "cstdlib": "c",
         "system_error": "cpp",
-        "regex": "cpp"
+        "regex": "cpp",
+        "fitz.h": "c",
+        "object.h": "c",
+        "list": "c"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }
