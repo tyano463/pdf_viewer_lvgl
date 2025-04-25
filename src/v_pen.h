@@ -61,14 +61,6 @@ typedef struct str_v_stroke
     uint16_t max;
     v_color_t color;
 } v_stroke_t;
-
-typedef struct str_v_stroke_data
-{
-    v_stroke_t **strokes;
-    uint8_t num;
-    uint8_t active;
-} v_stroke_data_t;
-
 typedef struct str_v_pen_ops
 {
     void (*draw)(float x, float y, float pressure, v_pen_draw_mode_t mode);
@@ -77,8 +69,7 @@ typedef struct str_v_pen_ops
 
 v_status_t v_pen_init(lv_obj_t *parent, v_pen_ops_t *ops);
 v_pen_ops_t *v_pen_getops(void);
-v_stroke_data_t *all_strokes(void);
 
-cJSON *pen_to_json(v_pen_t * pen);
+cJSON *pen_to_json(v_pen_t *pen);
 v_pen_t *json_to_pen(cJSON *json);
 #endif

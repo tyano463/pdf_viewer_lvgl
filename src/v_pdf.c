@@ -11,8 +11,9 @@ static v_status_t v_pdf_alloc_pixel_data(uint8_t *data, int page, int rowstride,
 static void v_pdf_release_pixel_data(void);
 static v_status_t v_pdf_get_annots(void);
 static void add_ink_annot_sample(const char *);
+static void v_pdf_release(void);
 
-static PdfData *pdf;
+static v_pdf_t *pdf;
 static fz_pixmap *pix;
 static v_draw_ops_t ops;
 static pdf_annot **annots;
@@ -25,7 +26,7 @@ static void init_ops(void)
     ops.size = v_pdf_getsize;
     ops.pixel = v_pdf_alloc_pixel_data;
     ops.annots = v_pdf_get_annots;
-    ops.free = NULL;
+    ops.free = v_pdf_release;
 }
 
 v_draw_ops_t *v_pdf_get_ops(void)
@@ -43,7 +44,7 @@ static v_status_t v_pdf_init(void)
 
     status = ST_PDF_OPEN_FAILED;
     if (!pdf)
-        pdf = calloc(sizeof(PdfData), 1);
+        pdf = calloc(sizeof(v_pdf_t), 1);
     ERR_RETn(!pdf);
 
     status = ST_PDF_CONTEXT_CREAT_FAILED;
@@ -58,7 +59,33 @@ static v_status_t v_pdf_init(void)
 error_return:
     return status;
 }
+static v_status_t v_pdf_loadpage(int page)
+{
+    v_status_t status = ST_PDF_OPEN_FAILED;
+    ERR_RET(!pdf, "pdf is null");
 
+    if (pdf->page)
+    {
+        if (pdf->page->number == page)
+        {
+            status = ST_SUCCESS;
+            goto error_return;
+        }
+        else
+        {
+            v_pdf_release_pixel_data();
+            fz_drop_document(pdf->ctx, pdf->doc);
+        }
+    }
+    pdf->page = fz_load_page(pdf->ctx, pdf->doc, 0);
+    fz_rect bounds = fz_bound_page(pdf->ctx, pdf->page);
+    pdf->width = bounds.x1 - bounds.x0;
+    pdf->height = bounds.y1 - bounds.y0;
+
+    status = ST_SUCCESS;
+error_return:
+    return status;
+}
 static v_status_t v_pdf_open(const char *path)
 {
     v_status_t status;
@@ -75,14 +102,11 @@ static v_status_t v_pdf_open(const char *path)
     }
 
     pdf->page_num = fz_count_pages(pdf->ctx, pdf->doc);
+    pdf->changed = false;
 
     // Load the first page
-    pdf->page = fz_load_page(pdf->ctx, pdf->doc, 0);
-    fz_rect bounds = fz_bound_page(pdf->ctx, pdf->page);
-    pdf->width = bounds.x1 - bounds.x0;
-    pdf->height = bounds.y1 - bounds.y0;
+    status = v_pdf_loadpage(0);
 
-    status = ST_SUCCESS;
 error_return:
     return status;
 }
@@ -165,34 +189,32 @@ static void add_ink_annot_sample(const char *input_pdf)
 {
     const char *output_pdf = next_file_name(input_pdf);
     fz_context *ctx = fz_new_context(NULL, NULL, FZ_STORE_UNLIMITED);
+
     fz_try(ctx)
     {
-        pdf_document *doc = pdf_create_document(ctx);
+        pdf_document *doc = pdf_open_document(ctx, input_pdf);
+        fz_page *page = fz_load_page(ctx, (fz_document *)doc, 0);
+        pdf_page *pdfpage = (pdf_page *)page;
 
-        int w, h;
-        v_pdf_getsize(&w, &h);
-        _newPage(ctx, doc, 0, w, h);
-        pdf_page *page = (pdf_page *)fz_load_page(ctx, (fz_document *)doc, 0);
+        fz_point points[3] = {
+            {100, 500},
+            {150, 520},
+            {180, 580}};
 
-        // Ink注釈作成
-        pdf_annot *annot = pdf_create_annot(ctx, page, PDF_ANNOT_INK);
+        pdf_annot *annot = pdf_create_annot(ctx, pdfpage, PDF_ANNOT_INK);
 
-        // 色
-        float color[3] = {1.0f, 0.0f, 0.0f}; // 赤
+        fz_colorspace *cs = fz_device_rgb(ctx);
+        float color[3] = {0.57f, 0.25f, 0.67f};
         pdf_set_annot_color(ctx, annot, 3, color);
 
-        // 線の太さ
-        pdf_set_annot_border(ctx, annot, 3.0f);
+        pdf_set_annot_border(ctx, annot, 2.0f);
 
-        // 透明度
         pdf_obj *obj = pdf_annot_obj(ctx, annot);
         pdf_dict_puts(ctx, obj, "CA", pdf_new_real(ctx, 0.5f));
 
-        // ストローク座標（InkList）
-        fz_point points[3] = {{100, 500}, {200, 550}, {150, 600}};
         pdf_obj *inklist = pdf_new_array(ctx, doc, 1);
         pdf_obj *stroke = pdf_new_array(ctx, doc, 6);
-        for (int i = 0; i < 3; ++i)
+        for (int i = 0; i < 3; i++)
         {
             pdf_array_push(ctx, stroke, pdf_new_real(ctx, points[i].x));
             pdf_array_push(ctx, stroke, pdf_new_real(ctx, points[i].y));
@@ -200,36 +222,52 @@ static void add_ink_annot_sample(const char *input_pdf)
         pdf_array_push(ctx, inklist, stroke);
         pdf_dict_puts(ctx, obj, "InkList", inklist);
 
-        // 注釈更新
         pdf_update_annot(ctx, annot);
 
-        // 保存
-        fz_output *out = fz_new_output_with_path(ctx, output_pdf, 0);
-        fz_document_writer *writer = fz_new_pdf_writer_with_output(ctx, out, NULL);
-        fz_write_document(ctx, writer, (fz_document *)doc);
-        fz_close_document_writer(ctx, writer);
-        fz_close_output(ctx, out);
+        pdf_save_document(ctx, doc, output_pdf, NULL);
 
-        // クリーンアップ
-        fz_drop_document(ctx, (fz_document *)doc);
+        fz_drop_page(ctx, page);
+        fz_drop_document(ctx, &doc->super);
     }
     fz_catch(ctx)
     {
-        fprintf(stderr, "Error: %s\n", fz_caught_message(ctx));
+        d("Error: %s", fz_caught_message(ctx));
     }
 
     fz_drop_context(ctx);
 }
 
+static int get_annot_num(void)
+{
+    int n = -1;
+    pdf_annot *annot;
+    ERR_RET(!pdf || !pdf->ctx || !pdf->page, "no load pdf");
+
+    annot = pdf_first_annot(pdf->ctx, (pdf_page *)pdf->page);
+    n = 0;
+    while (annot)
+    {
+        n++;
+        annot = pdf_next_annot(pdf->ctx, annot);
+    }
+error_return:
+    return n;
+}
+
 static v_status_t v_pdf_get_annots(void)
 {
-    int i;
-    v_status_t status = ST_SUCCESS;
-    uint32_t n = annot_num();
-    ERR_RETn(!n);
+    int i, n;
+    v_status_t status = ST_PDF_ANNOTATION_FAILED;
+    pdf_annot *annot;
 
-    d("n: %d", n);
-    status = ST_PDF_ANNOTATION_FAILED;
+    n = get_annot_num();
+    ERR_RETn(n < 0);
+    if (!n)
+    {
+        status = ST_SUCCESS;
+        goto error_return;
+    }
+
     if (annots)
         free(annots);
     annots = (pdf_annot **)malloc(sizeof(pdf_annot *) * n);
@@ -297,13 +335,10 @@ static v_status_t v_pdf_alloc_pixel_data(uint8_t *data, int page, int rowstride,
 
     v_pdf_release_pixel_data();
 
-#if NOANNOT
     // exclude annotation
     pix = fz_new_pixmap_from_page_contents(pdf->ctx, pdf->page, ctm, cs, 0);
-#else
     // include annotation
-    pix = fz_new_pixmap_from_page_number(pdf->ctx, pdf->doc, page, ctm, cs, 0);
-#endif
+    //    pix = fz_new_pixmap_from_page_number(pdf->ctx, pdf->doc, page, ctm, cs, 0);
 
     d("%d, %d str:%d", pix->w, pix->h, pix->stride);
     w = min(pix->w, pdf->width);
@@ -335,6 +370,45 @@ error_return:
 static void v_pdf_release_pixel_data(void)
 {
     if (pdf && pix)
+    {
         fz_drop_pixmap(pdf->ctx, pix);
-    pix = NULL;
+        pix = NULL;
+    }
+}
+
+static void v_pdf_save(const char *path)
+{
+    ERR_RET(!path, "path is null");
+    ERR_RET(!pdf || !pdf->ctx, "ctx is null");
+
+    char *dirname = get_dir_name(path);
+    ERR_RET(!dirname, "unknown path: %s", path);
+
+    if (!directory_exists(dirname))
+    {
+        mkdir_p(dirname, 0666);
+    }
+    free(dirname);
+
+    pdf_save_document(pdf->ctx, (pdf_document *)pdf->doc, path, NULL);
+
+error_return:
+    return;
+}
+
+static void v_pdf_release(void)
+{
+    ERR_RETn(!pdf);
+    ERR_RETn(!pdf->page);
+
+    v_pdf_release_pixel_data();
+    fz_drop_page(pdf->ctx, pdf->page);
+    pdf->page = NULL;
+    fz_drop_document(pdf->ctx, pdf->doc);
+    pdf->doc = NULL;
+    fz_drop_context(pdf->ctx);
+    pdf->ctx = NULL;
+
+error_return:
+    return;
 }

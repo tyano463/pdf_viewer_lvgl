@@ -4,6 +4,16 @@
 #include "v_canvas.h"
 #include "v_pen.h"
 
+static void *draw_main(void *);
+static void init_ops(void);
+static void v_add_annot(v_annot_t *annot);
+static void v_remove_annot(v_annot_t *annot);
+static void v_show_frame(v_annot_t *annot);
+static void v_set_show_mode(v_show_mode_t mode);
+static v_status_t v_init_canvas(lv_obj_t *parent);
+static v_status_t v_show_image(v_image_t *im);
+static void v_set_touch_callback(lv_event_cb_t cb);
+
 lv_obj_t *canvas;
 LV_DRAW_BUF_DEFINE_STATIC(canvas_buf, WIDTH, HEIGHT, LV_COLOR_FORMAT_ARGB8888);
 static lv_layer_t layer;
@@ -11,12 +21,47 @@ static pthread_cond_t cond;
 static pthread_t *th;
 static pthread_mutex_t *mutex;
 static bool running;
+static v_show_mode_t g_mode;
 
 static lv_img_dsc_t *dsc;
 static lv_obj_t *image;
 
-static void *draw_main(void *);
+static v_viewer_ops_t ops;
 
+static void init_ops(void)
+{
+    if (!ops.init)
+    {
+        ops.init = v_init_canvas;
+        ops.show_image = v_show_image;
+        ops.set_touch_callback = v_set_touch_callback;
+        ops.set_mode = v_set_show_mode;
+        ops.show_frame = v_show_frame;
+        ops.add_annot = v_add_annot;
+        ops.remove_annot = v_remove_annot;
+    }
+}
+
+static void v_add_annot(v_annot_t *annot)
+{
+}
+static void v_remove_annot(v_annot_t *annot)
+{
+}
+
+static void v_show_frame(v_annot_t *annot)
+{
+}
+static void v_set_show_mode(v_show_mode_t mode)
+{
+    g_mode = mode;
+}
+
+v_viewer_ops_t *v_get_canvas_ops(void)
+{
+    init_ops();
+    return &ops;
+}
 static void draw_thread_init(void)
 {
 
@@ -27,7 +72,7 @@ static void draw_thread_init(void)
     pthread_create(th, NULL, draw_main, NULL);
 }
 
-v_status_t v_init_canvas(lv_obj_t *parent)
+static v_status_t v_init_canvas(lv_obj_t *parent)
 {
     v_status_t status = ST_CREATE_CANVAS_FAILED;
 
@@ -55,7 +100,7 @@ error_return:
     return status;
 }
 
-v_status_t v_show_image(v_image_t *im)
+static v_status_t v_show_image(v_image_t *im)
 {
     int w, h;
     float scale, scale_x, scale_y;
@@ -89,7 +134,7 @@ static void *draw_main(void *arg)
     return NULL;
 }
 
-void v_set_touch_callback(lv_event_cb_t cb)
+static void v_set_touch_callback(lv_event_cb_t cb)
 {
     lv_obj_add_event_cb(canvas, cb, LV_EVENT_PRESSED | LV_EVENT_RELEASED, NULL);
 }

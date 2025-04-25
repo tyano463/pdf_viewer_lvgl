@@ -38,11 +38,14 @@ static v_mode_t mode;
 static lv_point_t touch_point;
 static v_draw_ops_t *(*draw_ops[V_FORMAT_MAX])(void);
 static uint8_t *orig_data;
+static v_viewer_ops_t *view_ops;
+static char *current_path;
+static v_draw_ops_t *current_ops;
 
 int main(int argc, char **argv)
 {
     v_status_t status;
-    const char *path;
+    char *path;
     uint16_t page;
     v_log_init();
 
@@ -58,26 +61,30 @@ int main(int argc, char **argv)
 
     init();
 
-    status = v_init_canvas(scr);
+    view_ops = v_get_canvas_ops();
+    ERR_RET(!view_ops || !view_ops->init, "canvas ops");
+
+    status = view_ops->init(scr);
     ERR_RET(status != ST_SUCCESS, "init canvas");
+
+    v_settings_ops_t *settings = v_get_settings_ops();
 
     status = v_menu_init(scr, &menu_ops);
     ERR_RET(status != ST_SUCCESS, "menu init");
 
-    v_settings_ops_t *settings = v_get_settings_ops();
-    path = settings->get_path();
+    view_ops->set_touch_callback(pdf_callback);
+    pen_ops.mode = mode_changed;
+    status = v_pen_init(scr, &pen_ops);
+    d("pen init %d", status);
+
+    path = strdup(settings->get_path());
     page = settings->get_page();
+    current_path = path;
 
     v_format_t format = get_format(path);
     ERR_RET(format >= V_FORMAT_MAX, "get format @%s", path);
     status = show_page(format, path, page);
     ERR_RETn(status != ST_SUCCESS);
-
-    pen_ops.mode = mode_changed;
-    status = v_pen_init(scr, &pen_ops);
-    d("pen init %d", status);
-
-    v_set_touch_callback(pdf_callback);
 
     while (1)
     {
@@ -184,6 +191,10 @@ static v_status_t disp_init(void)
 static void file_opened(const char *path)
 {
     v_status_t status;
+    ERR_RETn(strcmp(current_path, path) == 0);
+
+    current_ops->free();
+
     v_format_t format = get_format(path);
     status = show_page(format, path, 0);
     ERR_RET(status != ST_SUCCESS, "show page %d %d @%s", format, 0, path);
@@ -198,7 +209,8 @@ static void mode_changed(v_mode_t _mode)
 
 static v_draw_ops_t *get_ops(v_format_t format)
 {
-    return draw_ops[format]();
+    current_ops = draw_ops[format]();
+    return current_ops;
 }
 
 static uint8_t *autoscale(uint8_t *orig, int *_w, int *_h)
@@ -274,7 +286,7 @@ static v_status_t show_page(v_format_t format, const char *path, uint16_t page)
     image.height = h;
     image.width = w;
     image.size = w * h * 4;
-    v_show_image(&image);
+    view_ops->show_image(&image);
 
     if (ops->annots)
     {

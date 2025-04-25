@@ -13,6 +13,15 @@
 #include "v_misc.h"
 #include <math.h>
 
+typedef uint8_t misc_filetype_t;
+enum
+{
+    MISC_FILETYPE_REG,
+    MISC_FILETYPE_DIR,
+    MISC_FILETYPE_MAX,
+};
+
+static bool inode_exists(const char *path, misc_filetype_t t);
 static char b2c(const uint8_t b)
 {
     if (0 <= b && b <= 9)
@@ -69,6 +78,11 @@ float distance(lv_point_t *a, lv_point_t *b)
 {
     float d2 = (b->x - a->x) * (b->x - a->x) + (b->y - a->y) * (b->y - a->y);
     return sqrtf(d2);
+}
+
+bool directory_exists(const char *path)
+{
+    return inode_exists(path, MISC_FILETYPE_DIR);
 }
 
 int mkdir_p(const char *path, mode_t mode)
@@ -133,20 +147,7 @@ bool ends_with_ignore_case(const char *str, const char *suffix)
 
 bool file_exists(const char *path)
 {
-    struct stat st;
-
-    if (lstat(path, &st))
-    {
-        return false;
-    }
-
-    if (S_ISLNK(st.st_mode))
-    {
-        if (stat(path, &st))
-            return false;
-    }
-
-    return S_ISREG(st.st_mode);
+    return inode_exists(path, MISC_FILETYPE_REG);
 }
 
 char *execute_command(const char *command, ...)
@@ -256,4 +257,55 @@ const char *next_file_name(const char *orig)
     name = _name;
 error_return:
     return name;
+}
+
+static bool inode_exists(const char *path, misc_filetype_t t)
+{
+    struct stat st;
+    bool ret = false;
+
+    ERR_RETn(stat(path, &st));
+    switch (t)
+    {
+    case MISC_FILETYPE_DIR:
+        ret = S_ISDIR(st.st_mode);
+        break;
+    case MISC_FILETYPE_REG:
+        ret = S_ISREG(st.st_mode);
+        break;
+    default:
+        break;
+    }
+
+error_return:
+    return ret;
+}
+
+char *get_dir_name(const char *path)
+{
+    ERR_RETn(!path);
+    int len = strlen(path);
+    ERR_RETn(!len);
+
+    const char *ret = NULL;
+    const char *d = strdup(path);
+
+    ERR_RETn(!d);
+
+    char *p;
+    for (p = &d[len - 1]; p > d; p--)
+    {
+        if (*p == '/')
+            break;
+    }
+
+    if (p > d)
+    {
+        memcpy(d, path, p - d);
+        *p = '\0';
+    }
+
+    ret = d;
+error_return:
+    return ret;
 }

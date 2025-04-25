@@ -1,4 +1,9 @@
 {
+    "C_Cpp.clang_format_style": "file",
+    "C_Cpp.default.cppStandard": "c++17",
+    "editor.defaultFormatter": "ms-vscode.cpptools",
+    "editor.formatOnSave": true,
+    "editor.formatOnPaste": true,
     "files.associations": {
         "v_common.h": "c",
         "lv_types.h": "c",

@@ -48,7 +48,8 @@ typedef enum
     MODE_PEN,
 } v_mode_t;
 typedef uint8_t v_show_mode_t;
-enum {
+enum
+{
     V_SHOW_MODE_ALL,
     V_SHOW_MODE_NO_ANNOT,
     V_SHOW_MODE_SCORE_ONLY,
@@ -80,6 +81,13 @@ typedef struct
     float sy;
 } v_scale_t;
 
+typedef struct
+{
+    float left;
+    float top;
+    float right;
+    float bottom;
+} v_rect_t;
 typedef enum
 {
     ST_SUCCESS,
