@@ -11,7 +11,7 @@ typedef struct str_v_menu
     bool shown;
 } v_menu_t;
 
-typedef struct str_v_menu_ops
+typedef struct str_v_menu_cb_ops
 {
     void (*file_opened)(const char *);
     void (*save_as)(const char *);
@@ -19,9 +19,14 @@ typedef struct str_v_menu_ops
     void (*export_pdf)(const char *);
     void (*show_mode)(v_show_mode_t mode);
 
-} v_menu_ops_t;
+} v_menu_cb_ops_t;
 
-v_status_t v_menu_init(lv_obj_t *parent, v_menu_ops_t *ops);
-void v_menu_update(void);
+typedef struct str_v_menu_ops
+{
+    v_status_t (*init)(lv_obj_t *parent, v_menu_cb_ops_t *ops);
+    void (*show_icon)(void);
+    void (*hide_icon)(void);
+} v_menu_ops_t;
+v_menu_ops_t *v_get_menu_ops(void);
 
 #endif

@@ -18,5 +18,11 @@ typedef struct
     bool changed;
 } v_pdf_t;
 
+typedef struct str_v_pdf_da
+{
+    char *fontname;
+    uint8_t fontsize;
+    v_color_t color;
+} v_pdf_da_t;
 v_draw_ops_t *v_pdf_get_ops(void);
 #endif

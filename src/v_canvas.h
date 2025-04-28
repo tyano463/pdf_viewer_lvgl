@@ -13,17 +13,6 @@ typedef struct str_v_image
     lv_color_format_t format;
 } v_image_t;
 
-typedef struct str_v_draw_ops
-{
-    v_status_t (*init)(void);
-    v_status_t (*open)(const char *path);
-    int (*pagenum)(void);
-    v_status_t (*size)(int *width, int *height);
-    v_status_t (*pixel)(uint8_t *data, int page, int rowstride, v_scale_t ctm);
-    void (*free)(void);
-    v_status_t (*annots)(void);
-} v_draw_ops_t;
-
 typedef uint8_t v_annot_kind_t;
 enum
 {
@@ -32,22 +21,50 @@ enum
     V_ANNOT_MAX,
 };
 
+typedef struct
+{
+    float elm[2][3];
+} v_matrix_t;
+
+typedef struct str_v_freetext
+{
+
+    const char *content;
+    v_color_t color;
+    uint8_t font_size;
+    char *font_name;
+    v_rect_t position;
+} v_freetext_t;
+
 typedef struct str_v_annot
 {
     void *pdf_annot_obj;
+    v_matrix_t matrix;
     v_annot_kind_t kind;
     union
     {
-        struct
-        {
-            const char *content;
-            uint8_t font_size;
-            const char *font_name;
-            v_rect_t position;
-        } freetext;
-        v_stroke_t stroke;
+        v_freetext_t freetext;
+        v_inklist_t inklist;
     } data;
 } v_annot_t;
+
+typedef struct str_v_annnots
+{
+    uint32_t num;
+    v_annot_t annot[];
+} v_annots_t;
+
+typedef struct str_v_draw_ops
+{
+    v_status_t (*init)(void);
+    v_status_t (*open)(const char *path);
+    int (*pagenum)(void);
+    v_status_t (*size)(int *width, int *height);
+    v_status_t (*pixel)(uint8_t *data, int page, int rowstride, v_scale_t ctm);
+    void (*free)(void);
+    v_annots_t *(*annots)(void);
+    void (*save)(const char *path);
+} v_draw_ops_t;
 
 typedef struct str_v_viewer_ops
 {
@@ -56,8 +73,10 @@ typedef struct str_v_viewer_ops
     void (*show_frame)(v_annot_t *annot);
     void (*remove_annot)(v_annot_t *annot);
     void (*set_mode)(v_show_mode_t mode);
-    v_status_t (*show_image)(v_image_t *image);
+    v_status_t (*show_image)(v_image_t *image, float current_scale);
     void (*set_touch_callback)(lv_event_cb_t cb);
+    void (*show_annot)(void);
+    void (*hide_annot)(void);
 } v_viewer_ops_t;
 
 v_viewer_ops_t *v_get_canvas_ops(void);

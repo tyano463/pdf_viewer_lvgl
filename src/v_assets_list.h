@@ -3,14 +3,16 @@
 
 #include <stdint.h>
 
-#define ASSETS_LIST \
+#define ASSETS_LIST  \
     ENTRY(hamburger) \
-    ENTRY(pen24) \
+    ENTRY(pen)       \
+    ENTRY(open_book) \
+    ENTRY(circle)    \
     ENTRY(close_button)
 
 #define JSON_LIST \
-    JENTRY(menu) \
-    JENTRY(ja) \
+    JENTRY(menu)  \
+    JENTRY(ja)    \
     JENTRY(en)
 
 uint8_t *get_asset_ptr(const char *name);

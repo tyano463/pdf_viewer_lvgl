@@ -50,10 +50,10 @@ typedef enum
 typedef uint8_t v_show_mode_t;
 enum
 {
-    V_SHOW_MODE_ALL,
-    V_SHOW_MODE_NO_ANNOT,
+    V_SHOW_MODE_ANNOT_WITH_MENU,
+    V_SHOW_MODE_ANNOT_NO_MENU,
     V_SHOW_MODE_SCORE_ONLY,
-    v_SHOW_MODE_MAX,
+    V_SHOW_MODE_MAX,
 };
 
 typedef uint8_t v_annot_display_t;

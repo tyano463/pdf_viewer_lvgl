@@ -22,6 +22,7 @@ pdf_viewer_lvgl_SOURCES = src/main.c \
 	src/v_log.c \
 	src/v_file.c \
 	src/v_misc.c \
+	src/v_color.c \
 	src/v_icon.c \
 	src/v_assets_list.c \
 	src/v_canvas.c \
@@ -30,6 +31,9 @@ pdf_viewer_lvgl_SOURCES = src/main.c \
 	src/v_png.c \
 	src/v_midi.c \
 	src/v_musicxml.c \
+	fonts/source_hans_16.c \
+	fonts/source_hans_20.c \
+	fonts/source_hans_24.c \
 	src/v_svg.c
 
 C_INC = \
@@ -37,13 +41,13 @@ C_INC = \
     -I$(srcdir)/lvgl \
     -I$(srcdir)/lvgl/src
 
-AM_CFLAGS = $(C_INC) -g -O0 -DHIDE_HIDDEN_FILES=1 `pkg-config librsvg-2.0 cairo libcjson libjpeg --cflags`
+AM_CFLAGS = $(C_INC) -g -O0 -DHIDE_HIDDEN_FILES=1 `pkg-config librsvg-2.0 cairo libcjson libjpeg --cflags` -Wall
 AM_CXXFLAGS = $(C_INC) -g -O0 -DHIDE_HIDDEN_FILES=1 `pkg-config librsvg-2.0 cairo libcjson libjpeg --cflags` 
 #AM_CFLAGS = $(C_INC) -g -O0 -fsanitize=address
 #AM_CPPFLAGS = $(C_INC) -g -O0 -fsanitize=address
 AM_LDFLAGS = -lmupdf -lX11 -lstdc++ -lm `pkg-config librsvg-2.0 cairo libcjson libjpeg --libs`
 
-ASSETS = hamburger pen24 close_button
+ASSETS = hamburger pen close_button open_book circle
 ASSET_SRCS = $(addprefix assets_, $(addsuffix _bmp.c, $(ASSETS)))
 JSON = menu ja en
 JSON_SRCS = $(addprefix assets_, $(addsuffix _json.c, $(JSON)))
@@ -52,8 +56,10 @@ pdf_viewer_lvgl_SOURCES += $(ASSET_SRCS) $(JSON_SRCS)
 #BUILT_SOURCES = $(pdf_viewer_lvgl_SOURCES)
 
 EXTRA_DIST = assets/hamburger.bmp \
-	assets/pen24.bmp \
+	assets/pen.bmp \
 	assets/close_button.bmp \
+	assets/open_book.bmp \
+	assets/circle.bmp \
 	assets/menu.json \
 	assets/ja.json \
 	assets/en.json

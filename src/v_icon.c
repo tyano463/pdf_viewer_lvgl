@@ -185,7 +185,6 @@ void to_bmp(const char *path, uint8_t *data, uint16_t width, uint16_t height)
     fclose(file);
 }
 
-
 lv_image_dsc_t *get_icon_dsc(const char *name)
 {
     lv_image_dsc_t *dsc = lv_malloc(sizeof(lv_image_dsc_t));
@@ -193,6 +192,7 @@ lv_image_dsc_t *get_icon_dsc(const char *name)
 
     uint8_t w, h;
     uint8_t *asset = get_asset_ptr(name);
+    d("asset:%p", asset);
     dsc->data = load_bmp_data(asset, &w, &h);
     dsc->data_size = w * h * 4;
 

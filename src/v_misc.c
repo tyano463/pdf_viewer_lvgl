@@ -287,8 +287,8 @@ char *get_dir_name(const char *path)
     int len = strlen(path);
     ERR_RETn(!len);
 
-    const char *ret = NULL;
-    const char *d = strdup(path);
+    char *ret = NULL;
+    char *d = strdup(path);
 
     ERR_RETn(!d);
 

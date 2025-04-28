@@ -11,7 +11,8 @@
 #define V_SETTINGS_FILE "settings.json"
 #define V_CONFIG_DIR "/.config/" APP_NAME
 
-#define PDF_FILE "/usr/share/sample.pdf"
+// #define PDF_FILE "/usr/share/sample.pdf"
+#define PDF_FILE "/home/tyano/Documents/annot.pdf"
 #define EN "en"
 #define JA "ja"
 #define FALLBACK_LANG EN

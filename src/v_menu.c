@@ -16,7 +16,9 @@ static void hide_menu(void);
 static void show_menu(void);
 
 static v_menu_t *_menu;
-static v_menu_ops_t *_ops;
+static v_menu_cb_ops_t *_ops;
+static v_menu_ops_t g_menu_ops;
+static v_show_mode_t g_show_mode;
 
 static void open_file(const char *path)
 {
@@ -115,7 +117,24 @@ error_return:
     return;
 }
 
-v_status_t v_menu_init(lv_obj_t *parent, v_menu_ops_t *ops)
+static void mode_changed(lv_event_t *e)
+{
+    g_show_mode++;
+    g_show_mode %= V_SHOW_MODE_MAX;
+    _ops->show_mode(g_show_mode);
+}
+
+static void switch_button(lv_obj_t *parent)
+{
+    lv_img_dsc_t *dsc = get_icon_dsc("circle");
+    lv_obj_t *icon = lv_image_create(parent);
+    lv_image_set_src(icon, dsc);
+    lv_obj_align(icon, LV_ALIGN_BOTTOM_LEFT, 10, -10);
+    lv_obj_add_flag(icon, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(icon, mode_changed, LV_EVENT_SINGLE_CLICKED, NULL);
+}
+
+static v_status_t v_menu_init(lv_obj_t *parent, v_menu_cb_ops_t *ops)
 {
     v_status_t status;
 
@@ -126,14 +145,49 @@ v_status_t v_menu_init(lv_obj_t *parent, v_menu_ops_t *ops)
     cJSON *json = load_menu_settings();
     create_menu(parent, json);
 
+    switch_button(parent);
+
     _ops = ops;
+    g_show_mode = V_SHOW_MODE_ANNOT_WITH_MENU;
     status = ST_SUCCESS;
 
     return status;
 }
 
-void v_menu_update(void)
+static void set_icon_visibiliry(bool vis)
 {
+    ERR_RETn(!_menu || !_menu->btn);
+
+    void (*func)(lv_obj_t *, lv_obj_flag_t) = vis ? lv_obj_remove_flag : lv_obj_add_flag;
+
+    func(_menu->btn, LV_OBJ_FLAG_HIDDEN);
+error_return:
+    return;
+}
+
+static void hide_icon(void)
+{
+    set_icon_visibiliry(false);
+}
+static void show_icon(void)
+{
+    set_icon_visibiliry(true);
+}
+
+static void init_ops(void)
+{
+    if (!g_menu_ops.init)
+    {
+        g_menu_ops.init = v_menu_init;
+        g_menu_ops.show_icon = show_icon;
+        g_menu_ops.hide_icon = hide_icon;
+    }
+}
+
+v_menu_ops_t *v_get_menu_ops(void)
+{
+    init_ops();
+    return &g_menu_ops;
 }
 
 static void set_menu_visible(bool visible)
