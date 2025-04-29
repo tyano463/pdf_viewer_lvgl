@@ -476,6 +476,10 @@ error_return:
     return;
 }
 
+static void v_pdf_reset_annot(void)
+{
+}
+
 static void v_pdf_release(void)
 {
     ERR_RETn(!pdf);

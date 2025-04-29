@@ -2,7 +2,7 @@
 #define __V_COMMON_H__
 
 #include <string.h>
-#include <lvgl/lvgl.h>
+#include <stdint.h>
 
 #define APP_NAME "pdf_viewer_lvgl"
 #define WIDTH 1024

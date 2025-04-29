@@ -212,6 +212,11 @@ error_return:
     return status;
 }
 
+static void reset_annotation(void)
+{
+    lv_canvas_fill_bg(canvas, lv_color_hex3(0xccc), LV_OPA_TRANSP);
+}
+
 static v_status_t v_show_image(v_image_t *im, float current_scale)
 {
     //    int w, h;
@@ -220,6 +225,7 @@ static v_status_t v_show_image(v_image_t *im, float current_scale)
     {
         lv_free((uint8_t *)dsc->data);
     }
+    reset_annotation();
     d("scale:%.02f", current_scale);
 
     g_scale = current_scale;

@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <cjson/cJSON.h>
+#include "lvgl/lvgl.h"
 #include "v_common.h"
 #include "v_color.h"
 

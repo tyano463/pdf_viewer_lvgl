@@ -34,6 +34,8 @@ pdf_viewer_lvgl_SOURCES = src/main.c \
 	fonts/source_hans_16.c \
 	fonts/source_hans_20.c \
 	fonts/source_hans_24.c \
+	src/v_core.c \
+	src/convert.c \
 	src/v_svg.c
 
 C_INC = \
@@ -45,7 +47,7 @@ AM_CFLAGS = $(C_INC) -g -O0 -DHIDE_HIDDEN_FILES=1 `pkg-config librsvg-2.0 cairo 
 AM_CXXFLAGS = $(C_INC) -g -O0 -DHIDE_HIDDEN_FILES=1 `pkg-config librsvg-2.0 cairo libcjson libjpeg --cflags` 
 #AM_CFLAGS = $(C_INC) -g -O0 -fsanitize=address
 #AM_CPPFLAGS = $(C_INC) -g -O0 -fsanitize=address
-AM_LDFLAGS = -lmupdf -lX11 -lstdc++ -lm `pkg-config librsvg-2.0 cairo libcjson libjpeg --libs`
+AM_LDFLAGS = -lmupdf -lX11 -lstdc++ -lm -lsmf -Wl,-rpath=/usr/local/lib `pkg-config librsvg-2.0 cairo libcjson libjpeg --libs`
 
 ASSETS = hamburger pen close_button open_book circle
 ASSET_SRCS = $(addprefix assets_, $(addsuffix _bmp.c, $(ASSETS)))

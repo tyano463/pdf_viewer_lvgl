@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <ctype.h>
+#include <stdarg.h>
 
 #include "v_common.h"
 #include "v_misc.h"
@@ -38,7 +39,7 @@ static char b2c(const uint8_t b)
     }
 }
 
-static char debug_str[64];
+static char debug_str[MAX_PATH];
 void dump(const uint8_t *data, size_t size)
 {
     char upper, lower;
@@ -72,12 +73,6 @@ void dump(const uint8_t *data, size_t size)
     {
         printf("%s\n", debug_str);
     }
-}
-
-float distance(lv_point_t *a, lv_point_t *b)
-{
-    float d2 = (b->x - a->x) * (b->x - a->x) + (b->y - a->y) * (b->y - a->y);
-    return sqrtf(d2);
 }
 
 bool directory_exists(const char *path)
@@ -160,8 +155,7 @@ char *execute_command(const char *command, ...)
     char *arg;
     va_start(ap, command);
 
-    int i = 0;
-    while (arg = va_arg(ap, char *))
+    while ((arg = va_arg(ap, char *)) != NULL)
     {
         sprintf(&cmd[strlen(cmd)], " %s", arg);
     }
@@ -175,7 +169,6 @@ char *execute_command(const char *command, ...)
         return NULL;
     }
 
-    i = 0;
     while (fgets(result, sizeof(result), pipe))
         ;
 
@@ -308,4 +301,38 @@ char *get_dir_name(const char *path)
     ret = d;
 error_return:
     return ret;
+}
+
+char *b2s(uint8_t *data, uint32_t len)
+{
+    uint8_t upper;
+    uint8_t lower;
+    char *p = debug_str;
+
+    for (uint32_t i = 0; i < len; i++)
+    {
+        upper = (data[i] & 0xf0) >> 4;
+        lower = (data[i] & 0x0f) >> 0;
+
+        *p++ = b2c(upper);
+        *p++ = b2c(lower);
+        *p++ = ' ';
+    }
+    *p++ = '\0';
+    return debug_str;
+}
+
+int64_t npow(int64_t a, int64_t n)
+{
+    int64_t result = 1;
+    while (n > 0)
+    {
+        if (n & 1)
+        {
+            result *= a;
+        }
+        a *= a;
+        n >>= 1;
+    }
+    return result;
 }

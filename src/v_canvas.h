@@ -1,6 +1,8 @@
 #ifndef __V_CANVAS_H__
 #define __V_CANVAS_H__
 
+#include <lvgl/lvgl.h>
+
 #include "v_common.h"
 #include "v_pen.h"
 

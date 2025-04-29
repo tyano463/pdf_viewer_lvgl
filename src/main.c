@@ -4,6 +4,7 @@
 #include <librsvg/rsvg.h>
 #include <cairo/cairo.h>
 #include "misc/lv_types.h"
+#include "v_core.h"
 #include "v_common.h"
 #include "v_pdf.h"
 #include "v_menu.h"
