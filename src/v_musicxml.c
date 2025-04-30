@@ -1,8 +1,12 @@
 #include <unistd.h>
 #include <stdlib.h>
+#include <cairo/cairo.h>
+#include <cairo/cairo-pdf.h>
+#include <librsvg/rsvg.h>
 
 #include "v_misc.h"
 #include "v_musicxml.h"
+#include "v_pdf.h"
 
 #define SVG_EXT_LEN 4
 #define VEROVIO "verovio"
@@ -16,12 +20,11 @@ static v_status_t v_musicxml_open(const char *file);
 static int v_musicxml_pagenum(void);
 static v_status_t v_musicxml_pixel(uint8_t *data, int page, int rowstride, v_scale_t ctm);
 static v_status_t v_musicxml_size(int *width, int *height);
+static v_annots_t *v_musicxml_annots(void);
 
 static v_draw_ops_t g_ops;
-static v_draw_ops_t *svg_ops;
+static v_draw_ops_t *pdf_ops;
 static char svg_file[] = "/tmp/temp_svg_XXXXXX.svg";
-static const char *svg = NULL;
-
 
 v_draw_ops_t *v_musicxml_get_ops(void)
 {
@@ -40,20 +43,102 @@ static void init_ops(void)
         g_ops.pagenum = v_musicxml_pagenum;
         g_ops.pixel = v_musicxml_pixel;
         g_ops.size = v_musicxml_size;
-        svg_ops = v_svg_get_ops();
+        g_ops.annots = v_musicxml_annots;
+        pdf_ops = v_pdf_get_ops();
     }
 }
-static const char *musicxml2svg(const char *mxl)
+
+static char *svg2pdf(char *file)
 {
+    char *pdf_path = NULL;
+    char *output;
+    GError *error = NULL;
+    RsvgHandle *rsvg_handle = rsvg_handle_new_from_file(file, &error);
+    ERR_RET(!rsvg_handle, "rsvg_handle_new_from_file @ %s", file);
+
+    gdouble w, h;
+    rsvg_handle_get_intrinsic_size_in_pixels(rsvg_handle, &w, &h);
+    RsvgRectangle viewport = {
+        .x = 0.0,
+        .y = 0.0,
+        .width = w,
+        .height = h};
+
+    output = strdup(file);
+    ERR_RET(!rename_ext(output, "pdf"), "rename ext");
+
+    cairo_surface_t *surface = cairo_pdf_surface_create(output, w, h);
+    cairo_t *cr = cairo_create(surface);
+    rsvg_handle_render_document(rsvg_handle, cr, &viewport, &error);
+
+    cairo_destroy(cr);
+    cairo_surface_destroy(surface);
+    g_object_unref(rsvg_handle);
+
+    pdf_path = output;
+error_return:
+    return pdf_path;
+}
+
+static char *pdf_concat(char **files)
+{
+    char *pdf_file = NULL;
+    char *path;
+    char *pattern;
+    ERR_RET(!files || !files[0], "file name is null");
+    char command[MAX_PATH];
+
+    path = get_original_filename(files[0]);
+    if (strcmp(path, files[0]) == 0)
+    {
+        pdf_file = path;
+        goto error_return;
+    }
+
+    pattern = get_file_pattern(files[0]);
+
+    sprintf(command, "qpdf --empty --pages %s -- %s", pattern, path);
+    execute_command(command);
+
+    pdf_file = path;
+error_return:
+    return pdf_file;
+}
+static char *multi_svg2pdf(char **files)
+{
+    char *file;
+    char path[MAX_PATH];
+    char *pdf_path;
+    for (int i = 0; files[i]; i++)
+    {
+        strcpy(path, files[i]);
+        pdf_path = svg2pdf(path);
+        strcpy(files[i], pdf_path);
+        free(pdf_path);
+    }
+
+    file = pdf_concat(files);
+    printf("file is %s\n", file);
+    return file;
+}
+
+static const char *musicxml2pdf(const char *mxl)
+{
+    d("%s", mxl);
     const char *file = NULL;
     int fd = mkstemps(svg_file, SVG_EXT_LEN);
     ERR_RET(fd < 0, "mkstemps");
     close(fd);
 
-    const char *result = execute_command(VEROVIO, mxl, "-o", svg_file);
+    const char *result = execute_command(VEROVIO, "--all-pages", mxl, "-o", svg_file);
     ERR_RET(!result, "convert failed");
+    d("");
 
-    file = svg_file;
+    char **files = list_sequence_files(svg_file);
+    d("");
+
+    file = multi_svg2pdf(files);
+    d("");
 
 error_return:
     return file;
@@ -61,19 +146,20 @@ error_return:
 
 static v_status_t v_musicxml_init(void)
 {
+    execute_command("rm", "-rf", "/tmp/temp_*.svg", NULL);
+
     return ST_SUCCESS;
 }
 static void v_musicxml_free(void)
 {
-    svg_ops->free();
+    pdf_ops->free();
 }
 
 static v_status_t v_musicxml_open(const char *file)
 {
-    v_status_t status = ST_MXL_OPEN_FAILED;
-    const char *svg = musicxml2svg(file);
+    const char *svg = musicxml2pdf(file);
 
-    return svg_ops->open(svg);
+    return pdf_ops->open(svg);
 }
 static int v_musicxml_pagenum(void)
 {
@@ -81,9 +167,13 @@ static int v_musicxml_pagenum(void)
 }
 static v_status_t v_musicxml_pixel(uint8_t *data, int page, int rowstride, v_scale_t ctm)
 {
-    return svg_ops->pixel(data, page, rowstride, ctm);
+    return pdf_ops->pixel(data, page, rowstride, ctm);
 }
 static v_status_t v_musicxml_size(int *width, int *height)
 {
-    return svg_ops->size(width, height);
+    return pdf_ops->size(width, height);
+}
+static v_annots_t *v_musicxml_annots(void)
+{
+    return pdf_ops->annots();
 }

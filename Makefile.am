@@ -82,3 +82,4 @@ assets_%_bmp.c: assets/%.bmp
 
 assets_%_json.c: assets/%.json
 	xxd -i $< > $@
+

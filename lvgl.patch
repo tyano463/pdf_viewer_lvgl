@@ -1,5 +1,5 @@
 diff --git a/src/others/file_explorer/lv_file_explorer.c b/src/others/file_explorer/lv_file_explorer.c
-index 0563aaeef..7ce3f1743 100644
+index 0563aaeef..025946f10 100644
 --- a/src/others/file_explorer/lv_file_explorer.c
 +++ b/src/others/file_explorer/lv_file_explorer.c
 @@ -13,7 +13,9 @@
@@ -116,7 +116,7 @@ index 0563aaeef..7ce3f1743 100644
      lv_table_set_row_count(explorer->file_table, index);
      file_explorer_sort(obj);
 -    lv_obj_send_event(obj, LV_EVENT_READY, NULL);
-+    lv_obj_send_event(obj, LV_EVENT_READY, &path[2]);
++    lv_obj_send_event(obj, LV_EVENT_READY, (char*)&path[2]);
  
      /*Move the table to the top*/
      lv_obj_scroll_to_y(explorer->file_table, 0, LV_ANIM_OFF);

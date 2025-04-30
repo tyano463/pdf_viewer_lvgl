@@ -13,6 +13,7 @@
 
 // #define PDF_FILE "/usr/share/sample.pdf"
 // #define PDF_FILE "/home/tyano/Documents/annot.pdf"
+// #define PDF_FILE "/home/tyano/Downloads/musicxml/Echigo-Jishi.musicxml"
 #define PDF_FILE "/home/tyano/Downloads/R02117G2.mid"
 #define EN "en"
 #define JA "ja"
@@ -21,6 +22,7 @@
 #define DEFAULT_MODE (S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH)
 
 static void init_ops(void);
+static char *serialize_settings_json(void);
 
 static const char *s_valid_lang[] = {
     JA,
@@ -47,7 +49,7 @@ static const char *v_config_dir(void)
         {
             int len = strlen(home);
             path = malloc(len + 1 + strlen(V_CONFIG_DIR));
-            sprintf(path, "%s", home, V_CONFIG_DIR);
+            sprintf(path, "%s%s", home, V_CONFIG_DIR);
             return path;
         }
     }
@@ -91,8 +93,15 @@ v_status_t v_save_settings(void)
     const char *path = get_config_path();
 
     FILE *fp = fopen(path, "w");
+    ERR_RET(!fp, "fopen %s", path);
+
+    char *s = serialize_settings_json();
+    ERR_RET(!s, "serialize_settings_json");
+    fwrite(s, strlen(s), 1, fp);
 
 error_return:
+    if (fp)
+        fclose(fp);
     return status;
 }
 
@@ -102,18 +111,17 @@ v_settings_ops_t *v_get_settings_ops(void)
     return &g_ops;
 }
 
-static v_status_t serialize_settings_json(void)
+static char *serialize_settings_json(void)
 {
     v_settings_t *p = &g_settings;
-    v_status_t status;
+    char *ret = NULL;
 
-    status = ST_SETTING_SERIALIZE_FAILED;
     cJSON *json = cJSON_CreateObject();
     ERR_RET(!json, "json");
-    cJSON *last_path;
-    cJSON *last_page;
-    cJSON *annot;
-    cJSON *pen;
+    cJSON *last_path = NULL;
+    cJSON *last_page = NULL;
+    cJSON *annot = NULL;
+    cJSON *pen = NULL;
 
     last_path = cJSON_CreateString(p->last_opened);
     ERR_RET(!last_path, V_S_ITEM_LAST_PATH);
@@ -129,11 +137,11 @@ static v_status_t serialize_settings_json(void)
     cJSON_AddItemToObject(json, V_S_ITEM_LAST_PEN, pen);
     cJSON_AddItemToObject(json, V_S_ITEM_ANNOT, annot);
 
-    status = ST_SUCCESS;
+    ret = cJSON_Print(json);
 error_return:
     if (json)
         cJSON_Delete(json);
-    return status;
+    return ret;
 }
 
 static v_status_t parse_settings_json(const char *const data)
@@ -142,10 +150,10 @@ static v_status_t parse_settings_json(const char *const data)
 
     status = ST_SETTING_PARSE_FAILED;
 
-    cJSON *last_path;
-    cJSON *last_page;
-    cJSON *annot;
-    cJSON *pen_json;
+    cJSON *last_path = NULL;
+    cJSON *last_page = NULL;
+    cJSON *annot = NULL;
+    cJSON *pen_json = NULL;
     cJSON *json = cJSON_Parse(data);
     ERR_RET(!json, "cJSON_Parse");
 
@@ -187,13 +195,14 @@ error_return:
 v_status_t v_load_settings(void)
 {
     v_status_t status;
+    FILE *fp = NULL;
 
     status = ST_SETTING_SAVE_FAILED;
 
     const char *path = get_config_path();
     ERR_RET(!path, "config path");
 
-    FILE *fp = fopen(path, "r");
+    fp = fopen(path, "r");
     ERR_RET(!fp, "fopen faild");
 
     ERR_RET(fseek(fp, 0, SEEK_END), "fseek");
@@ -257,7 +266,7 @@ static void set_lang(const char *s)
 {
     ERR_RETn(!s || !s[0]);
 
-    snprintf(g_settings.lang, sizeof(g_settings.lang), "%.*s", sizeof(g_settings.lang) - 1, s);
+    snprintf(g_settings.lang, sizeof(g_settings.lang), "%.*s", (int)(sizeof(g_settings.lang)) - 1, s);
 
 error_return:
     return;

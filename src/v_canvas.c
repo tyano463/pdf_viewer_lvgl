@@ -229,16 +229,25 @@ static v_status_t v_show_image(v_image_t *im, float current_scale)
     d("scale:%.02f", current_scale);
 
     g_scale = current_scale;
+    d("");
     uint8_t *data = lv_malloc(im->size);
+    d("");
     lv_memcpy(data, im->buf, im->size);
+    d("");
 
     dsc->data = data;
+    d("");
     dsc->header.cf = im->format;
+    d("");
     dsc->header.w = im->width;
     dsc->header.h = im->height;
+    d("");
     dsc->header.magic = LV_IMAGE_HEADER_MAGIC;
+    d("");
     dsc->data_size = im->size;
+    d("");
     lv_img_set_src(image, dsc);
+    d("");
     return ST_SUCCESS;
 }
 

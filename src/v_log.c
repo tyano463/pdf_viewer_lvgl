@@ -3,11 +3,12 @@
 #include <unistd.h>
 #include <time.h>
 #include <sys/time.h>
+#include <stdarg.h>
 
 #include "v_common.h"
 
 static FILE *log_fp;
-static char time_str[19];
+static char time_str[32];
 
 static v_status_t log_rotate(void);
 static bool exists(const char *);
@@ -30,12 +31,12 @@ char *get_time_str(void)
     snprintf(time_str, sizeof(time_str),
              "%02d%02d%02d_%02d%02d%02d.%03ld ",
              (tm->tm_year + 1900) % 100,
-             tm->tm_mon + 1,
-             tm->tm_mday,
-             tm->tm_hour,
-             tm->tm_min,
-             tm->tm_sec,
-             tv.tv_usec / 1000);
+             (tm->tm_mon + 1) % 100,
+             (tm->tm_mday) % 100,
+             (tm->tm_hour) % 100,
+             (tm->tm_min) % 100,
+             (tm->tm_sec) % 100,
+             (tv.tv_usec / 1000) % 1000);
 
     p = time_str;
 error_return:
@@ -78,7 +79,7 @@ static bool need_rotation(void)
 
 static v_status_t log_rotate(void)
 {
-    int i, len;
+    int i;
     v_status_t status = ST_SUCCESS;
     char s[2][MAX_PATH];
     char *old, *path;
@@ -92,7 +93,6 @@ static v_status_t log_rotate(void)
 
     path = s[V_LOG_MAX % 2];
     sprintf(path, "%s.%d", V_LOG_DIR "/" V_LOG_FILE, V_LOG_MAX);
-    len = strlen(path);
     unlink(path);
     for (i = V_LOG_MAX; i > 0; i--)
     {

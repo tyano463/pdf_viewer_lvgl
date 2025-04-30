@@ -20,12 +20,6 @@ static void file_explorer_event_handler(lv_event_t *e)
     lv_event_code_t code = lv_event_get_code(e);
     lv_obj_t *obj = lv_event_get_target(e);
 
-    const lv_event_code_t ignores[] = {
-        LV_EVENT_GET_SELF_SIZE,
-        LV_EVENT_DRAW_POST,
-        LV_EVENT_DRAW_POST_END,
-    };
-
     if (code == LV_EVENT_VALUE_CHANGED)
     {
         d("code: %s(%d)", lv_event_code_get_name(code), code);

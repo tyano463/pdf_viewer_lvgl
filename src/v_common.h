@@ -32,14 +32,14 @@
             goto error_return; \
     } while (0)
 
-#define ERR_RET(c, s, ...)                                                                     \
-    do                                                                                         \
-    {                                                                                          \
-        if (c)                                                                                 \
-        {                                                                                      \
-            v_log_write("%s(%d) %s " s "\n", __FILENAME__, __LINE__, __func__, ##__VA_ARGS__); \
-            goto error_return;                                                                 \
-        }                                                                                      \
+#define ERR_RET(c, s, ...)                                                                                \
+    do                                                                                                    \
+    {                                                                                                     \
+        if (c)                                                                                            \
+        {                                                                                                 \
+            v_log_write("### ERROR: %s(%d) %s " s "\n", __FILENAME__, __LINE__, __func__, ##__VA_ARGS__); \
+            goto error_return;                                                                            \
+        }                                                                                                 \
     } while (0)
 
 typedef enum

@@ -58,7 +58,6 @@ uint8_t *load_icon_data(uint8_t *ico, uint8_t *w, uint8_t *h)
     uint8_t *data = NULL;
     size_t pixel_size;
     IconDir *icon = (IconDir *)ico;
-    int i;
 
     d("ico:%p", ico);
 

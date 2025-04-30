@@ -1,6 +1,8 @@
 #ifndef __V_MIDI_H__
 #define __V_MIDI_H__
 
+#include <sys/queue.h>
+#include <smf.h>
 #include "v_canvas.h"
 typedef struct str_xf_event
 {
@@ -82,6 +84,7 @@ typedef struct str_v_note
     TAILQ_ENTRY(str_v_note)
     entry;
     uint32_t delta_time;
+    uint32_t next_time;
     uint16_t value;
     uint16_t index;
     uint8_t pitch;

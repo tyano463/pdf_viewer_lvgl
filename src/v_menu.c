@@ -93,10 +93,8 @@ static lv_img_dsc_t *hamburger_icon(void)
 static void create_button(lv_obj_t *parent)
 {
     lv_img_dsc_t *imgdsc;
-    static lv_style_t style;
     ERR_RETn(!_menu);
 
-    // style = lv_malloc(sizeof(lv_style_t));
     _menu->btn = lv_image_create(parent);
     ERR_RETn(!_menu->btn);
 
@@ -192,7 +190,6 @@ v_menu_ops_t *v_get_menu_ops(void)
 
 static void set_menu_visible(bool visible)
 {
-    lv_obj_flag_t flag;
     void (*func)(lv_obj_t *obj, lv_obj_flag_t f);
 
     ERR_RETn(!_menu || !_menu->menu);
@@ -231,7 +228,7 @@ static cJSON *get_lang_json(void)
 {
     v_settings_ops_t *ops = v_get_settings_ops();
     const char *lang = ops->get_lang();
-    const char *json_str = get_json_ptr(lang);
+    const char *json_str = (const char *)get_json_ptr(lang);
     return cJSON_Parse(json_str);
 }
 
@@ -268,7 +265,7 @@ static void button_callback(lv_event_t *e)
     }
     else if (strcmp(key, "export_pdf") == 0)
     {
-        show_filer(save_file_as, V_FILE_DIALOG_SAVE);
+        show_filer(export_pdf, V_FILE_DIALOG_SAVE);
     }
 
     hide_menu();
@@ -342,7 +339,7 @@ static void create_menu(lv_obj_t *parent, cJSON *menu_json)
 
 static cJSON *load_menu_settings(void)
 {
-    const char *menu_str = get_json_ptr(MENU_JSON);
+    const char *menu_str = (const char *)get_json_ptr(MENU_JSON);
     d("menu:%p", menu_str);
     return cJSON_Parse(menu_str);
 }

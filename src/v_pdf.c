@@ -11,7 +11,6 @@ static v_status_t v_pdf_getsize(int *width, int *height);
 static v_status_t v_pdf_alloc_pixel_data(uint8_t *data, int page, int rowstride, v_scale_t scale);
 static void v_pdf_release_pixel_data(void);
 static v_annots_t *v_pdf_get_annots(void);
-static void add_ink_annot_sample(const char *);
 static void v_pdf_release(void);
 static void v_pdf_save(const char *);
 
@@ -92,8 +91,6 @@ error_return:
 static v_status_t v_pdf_open(const char *path)
 {
     v_status_t status;
-
-    // add_ink_annot_sample(path);
 
     fz_try(pdf->ctx)
         pdf->doc = fz_open_document(pdf->ctx, path);
@@ -278,21 +275,27 @@ static v_annots_t *v_pdf_get_annots(void)
     v_annots_t *ret = NULL;
     v_annots_t *annots;
 
+    d("");
     n = get_annot_num();
     ERR_RETn(n <= 0);
 
+    d("");
     annots = (v_annots_t *)malloc(sizeof(v_annots_t) + sizeof(v_annot_t) * n);
     ERR_RET(!annots, "malloc");
 
+    d("");
     annots->num = n;
 
+    d("");
     annots->annot[0].pdf_annot_obj = pdf_first_annot(pdf->ctx, (pdf_page *)pdf->page);
 
+    d("");
     for (i = 1; i < n; i++)
     {
         annots->annot[i].pdf_annot_obj = pdf_next_annot(pdf->ctx, annots->annot[i - 1].pdf_annot_obj);
     }
 
+    d("");
     for (i = 0; i < n; i++)
     {
         v_annot_t *a = &annots->annot[i];

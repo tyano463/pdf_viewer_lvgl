@@ -28,7 +28,7 @@ static void v_midi_save(const char *path);
 static v_draw_ops_t g_ops;
 static v_draw_ops_t *mxl_ops;
 static v_midi_t *g_midi;
-static char mxl_file[] = "/tmp/temp_svg_XXXXXX.musicxml";
+static char mxl_file[] = "/tmp/temp_mxl_XXXXXX.musicxml";
 
 const char *gm_part_name[] = {
     "A.Grand Piano",
@@ -734,7 +734,7 @@ static v_midi_t *load_midi(const char *filename)
                 {
                     v_note_t *note = &midi->channel[channel].notes[note_num[channel]];
                     note->channel = channel;
-                    note->delta_time = event->time_pulses;
+                    note->next_time = note->delta_time = event->time_pulses;
                     note->pitch = event->midi_buffer[1];
                     note->velocity = event->midi_buffer[2];
                     note->value = 0;
@@ -778,7 +778,7 @@ static v_midi_t *load_midi(const char *filename)
                 uint8_t channel = event->midi_buffer[0] & 0xf;
                 if (!midi->channel[channel].name && !(event->midi_buffer[1] & 0x80))
                 {
-                    midi->channel[channel].name = gm_part_name[event->midi_buffer[1]];
+                    midi->channel[channel].name = (char *)gm_part_name[event->midi_buffer[1]];
                 }
                 // printf("%d: d:%d %02x %02x\n", j, event->time_pulses, event->midi_buffer[0], event->midi_buffer[1]);
             }
@@ -873,7 +873,7 @@ static char *midi_to_musicxml(v_midi_t *midi)
             {
                 note = &midi->channel[i].notes[j++];
             }
-            if (note->delta_time >= (measure + 1) * rest_base)
+            if (note->next_time >= (measure + 1) * rest_base)
             {
                 // 全休符
                 snprintf(buf, sizeof(buf), MXL_REST_TEMPLATE, rest_base, "whole");
@@ -883,7 +883,7 @@ static char *midi_to_musicxml(v_midi_t *midi)
             }
 
             int rest;
-            if (note->delta_time % rest_base)
+            if (note->next_time % rest_base)
             {
                 // 小節頭の休符
                 rest = rest_base - (note->delta_time % rest_base);
@@ -944,8 +944,10 @@ static char *midi_to_musicxml(v_midi_t *midi)
 error_return:
     return ret;
 }
+
 static v_status_t v_midi_init(void)
 {
+    execute_command("rm", "-rf", "/tmp/temp_*", NULL);
     return mxl_ops->init();
 }
 

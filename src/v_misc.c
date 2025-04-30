@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <ctype.h>
 #include <stdarg.h>
+#include <libgen.h>
 
 #include "v_common.h"
 #include "v_misc.h"
@@ -276,11 +277,11 @@ error_return:
 
 char *get_dir_name(const char *path)
 {
+    char *ret = NULL;
     ERR_RETn(!path);
     int len = strlen(path);
     ERR_RETn(!len);
 
-    char *ret = NULL;
     char *d = strdup(path);
 
     ERR_RETn(!d);
@@ -335,4 +336,193 @@ int64_t npow(int64_t a, int64_t n)
         n >>= 1;
     }
     return result;
+}
+
+static char *split_ext(char *base_name)
+{
+    int len = 0;
+    len = strlen(base_name);
+    char *ext = NULL;
+    for (int i = len - 1; i >= 0; i--)
+    {
+        if (base_name[i] == '.')
+        {
+            base_name[i] = '\0';
+            ext = &base_name[i + 1];
+        }
+    }
+    return ext;
+}
+
+static bool same_ext(const char *path, const char *ext)
+{
+    const char *dot = strrchr(path, '.');
+    if (!dot || dot == path)
+    {
+        return false;
+    }
+
+    const char *file_ext = dot + 1;
+
+    return strcmp(file_ext, ext) == 0;
+}
+
+static int compare_str(const void *aa, const void *bb)
+{
+    char *a = *(char **)aa;
+    char *b = *(char **)bb;
+    return strcmp(a, b);
+}
+
+bool rename_ext(char *path, const char *new_ext)
+{
+    char *dot = strrchr(path, '.');
+    if (!dot || dot == path)
+    {
+        return false;
+    }
+
+    if (strlen(dot + 1) != strlen(new_ext))
+    {
+        return false;
+    }
+
+    strcpy(dot + 1, new_ext);
+    return true;
+}
+
+char **list_sequence_files(char *file)
+{
+    char *dir_path = NULL;
+    char *base_name = NULL;
+    const char *ext = NULL;
+    struct dirent *entry;
+    char **ret = NULL;
+    char **paths;
+
+    base_name = strdup(basename(file));
+    dir_path = dirname(file);
+    ext = split_ext(base_name);
+
+    DIR *dir = opendir(dir_path);
+    ERR_RET(!dir, "opendir");
+
+    int count = 0;
+    while ((entry = readdir(dir)) != NULL)
+    {
+        if (strncmp(entry->d_name, base_name, strlen(base_name)) == 0)
+            count++;
+    }
+    closedir(dir);
+
+    ERR_RETn(!count);
+
+    paths = malloc(sizeof(char *) * (count + 1) + MAX_PATH * count);
+    int i;
+    for (i = 0; i < count; i++)
+    {
+        paths[i] = ((char *)&paths[count + 1]) + MAX_PATH * i;
+    }
+    paths[count] = NULL;
+
+    dir = opendir(dir_path);
+    i = 0;
+    struct stat st;
+    while ((entry = readdir(dir)) != NULL)
+    {
+        if ((strncmp(entry->d_name, base_name, strlen(base_name)) == 0) && (same_ext(entry->d_name, ext)))
+        {
+            if (fstatat(dirfd(dir), entry->d_name, &st, 0) || !S_ISREG(st.st_mode) || !st.st_size)
+            {
+                paths[--count] = NULL;
+            }
+            else
+            {
+                sprintf(paths[i++], "%s/%s", dir_path, entry->d_name);
+            }
+        }
+    }
+    closedir(dir);
+    qsort(paths, count, sizeof(char *), compare_str);
+
+    ret = paths;
+error_return:
+    if (base_name)
+        free(base_name);
+    return ret;
+}
+
+char *get_file_pattern(const char *filename)
+{
+    const char *ext = strrchr(filename, '.');
+    if (!ext)
+    {
+        return strdup(filename);
+    }
+
+    const char *underscore = ext;
+    while (underscore > filename && *(underscore - 1) != '_')
+    {
+        underscore--;
+    }
+
+    if (underscore > filename && *(underscore - 1) == '_')
+    {
+        const char *digits = underscore;
+        while (digits < ext && isdigit(*digits))
+        {
+            digits++;
+        }
+        if (digits == ext)
+        {
+            size_t base_len = (underscore + 1) - filename;
+            size_t ext_len = strlen(ext);
+            char *result = malloc(base_len + ext_len + 1);
+            if (!result)
+                return NULL;
+            strncpy(result, filename, base_len);
+            result[base_len - 1] = '*';
+            strcpy(result + base_len, ext);
+            return result;
+        }
+    }
+
+    return strdup(filename);
+}
+
+char *get_original_filename(const char *filename)
+{
+    const char *ext = strrchr(filename, '.');
+    if (!ext)
+    {
+        return strdup(filename);
+    }
+
+    const char *underscore = ext;
+    while (underscore > filename && *(underscore - 1) != '_')
+    {
+        underscore--;
+    }
+
+    if (underscore > filename && *(underscore - 1) == '_')
+    {
+        const char *digits = underscore;
+        while (digits < ext && isdigit(*digits))
+        {
+            digits++;
+        }
+        if (digits == ext)
+        {
+            size_t base_len = (underscore - 1) - filename;
+            size_t ext_len = strlen(ext);
+            char *result = malloc(base_len + ext_len + 1);
+            if (!result)
+                return NULL;
+            strncpy(result, filename, base_len);
+            strcpy(result + base_len, ext);
+            return result;
+        }
+    }
+
+    return strdup(filename);
 }

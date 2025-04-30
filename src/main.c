@@ -277,11 +277,11 @@ error_return:
 
 static v_status_t show_page(v_format_t format, const char *path, uint16_t page)
 {
+    v_status_t status = ST_PDF_OPEN_FAILED;
     d("format:%d", format);
     v_draw_ops_t *ops = get_ops(format);
     ERR_RET(!ops || !ops->init || !ops->open || !ops->size || !ops->pixel, "get ops %p", ops);
 
-    v_status_t status = ST_PDF_OPEN_FAILED;
     int w, h;
     status = ops->init();
     ERR_RET(status != ST_SUCCESS, "pdf init failed");
@@ -311,12 +311,17 @@ static v_status_t show_page(v_format_t format, const char *path, uint16_t page)
     image.width = w;
     image.size = w * h * 4;
     view_ops->show_image(&image, scale);
+    d("");
 
     status = ST_SUCCESS;
+    d("");
     ERR_RETn(!ops->annots);
+    d("");
     v_annots_t *annots = ops->annots();
+    d("");
     ERR_RETn(!annots);
 
+    d("");
     for (int i = 0; i < annots->num; i++)
     {
         v_annot_kind_t k = annots->annot[i].kind;
@@ -329,6 +334,7 @@ static v_status_t show_page(v_format_t format, const char *path, uint16_t page)
         view_ops->add_annot(&annots->annot[i]);
     }
 
+    d("");
 error_return:
     return status;
 }
