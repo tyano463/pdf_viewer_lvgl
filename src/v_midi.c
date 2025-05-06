@@ -10,11 +10,15 @@
 #include "v_misc.h"
 #include "v_midi.h"
 #include "v_musicxml.h"
+#include "v_pdf.h"
 
 #define MIDI_EVENT_NOTE_ON 0x90
 #define MIDI_EVENT_NOTE_OFF 0x80
 #define MIDI_EVENT_CC 0xC0
 #define MUSICXML_EXT_LEN 9
+#define PDF_EXT_LEN 4
+#define BUF_SIZE 1024
+#define MUSESCORE "/opt/squashfs-root/bin/mscore4portable"
 
 static v_status_t v_midi_init(void);
 static v_status_t v_midi_open(const char *path);
@@ -26,7 +30,9 @@ static v_annots_t *v_midi_annots(void);
 static void v_midi_save(const char *path);
 
 static v_draw_ops_t g_ops;
-static v_draw_ops_t *mxl_ops;
+static v_draw_ops_t *pdf_ops;
+static char pdf_file[] = "/tmp/temp_pdf_XXXXXX.pdf";
+#if 0
 static v_midi_t *g_midi;
 static char mxl_file[] = "/tmp/temp_mxl_XXXXXX.musicxml";
 
@@ -160,6 +166,7 @@ const char *gm_part_name[] = {
     "Applause",
     "Gunshot",
 };
+#endif
 extern const char *MXL_HEADER;
 extern const char *MXL_SCORE_PART_TEMPLATE;
 extern const char *MXL_END_PART_LIST;
@@ -168,6 +175,7 @@ extern const char *MXL_MEASURE_START_TEMPLATE;
 extern const char *MXL_NOTE_TEMPLATE;
 extern const char *MXL_NOTE_ALTER_TEMPLATE;
 extern const char *MXL_REST_TEMPLATE;
+extern const char *MXL_REST_DOT_TEMPLATE;
 extern const char *MXL_MEASURE_END;
 extern const char *MXL_PART_END;
 extern const char *MXL_SCORE_END;
@@ -185,7 +193,7 @@ static void init_ops(void)
         g_ops.save = v_midi_save;
         g_ops.free = v_midi_free;
 
-        mxl_ops = v_musicxml_get_ops();
+        pdf_ops = v_pdf_get_ops();
     }
 }
 v_draw_ops_t *v_midi_get_ops(void)
@@ -194,6 +202,7 @@ v_draw_ops_t *v_midi_get_ops(void)
     return &g_ops;
 }
 
+#if 0
 extern char *sjis_to_utf8(uint8_t *, size_t);
 
 TAILQ_HEAD(tq_head, str_v_note)
@@ -737,7 +746,7 @@ static v_midi_t *load_midi(const char *filename)
                     note->next_time = note->delta_time = event->time_pulses;
                     note->pitch = event->midi_buffer[1];
                     note->velocity = event->midi_buffer[2];
-                    note->value = 0;
+                    note->next_value = note->value = 0;
                     note_num[channel]++;
 
                     TAILQ_INSERT_TAIL(head, note, entry);
@@ -762,7 +771,8 @@ static v_midi_t *load_midi(const char *filename)
                     if (note->channel == channel && note->pitch == pitch)
                     {
                         TAILQ_REMOVE(head, note, entry);
-                        note->value = event->time_pulses - note->delta_time;
+                        memset(&note->entry, 0, sizeof(note->entry));
+                        note->next_value = note->value = event->time_pulses - note->delta_time;
                         // d("pos:%d pitch:%x len:%d", note->delta_time, note->pitch, note->value);
                         found = true;
                         break;
@@ -791,14 +801,197 @@ error_return:
     return ret;
 }
 
-static int get_measure_rest(v_midi_t *midi)
+static uint16_t get_measure_rest(v_midi_t *midi)
 {
     return 4 * midi->smf->ppqn * midi->numerator / midi->denominator;
 }
 
-static char *midi_to_musicxml(v_midi_t *midi)
+static bool time2glyph(uint16_t measure_len, v_midi_t *midi, uint16_t time, const char **target)
 {
-    char *ret = NULL;
+    bool dot = false;
+    const char *note_types[] = {
+        "whole", "half", "quarter", "eighth",
+        "16th", "32nd", "64th", "128th", NULL};
+    uint8_t denominator = midi->denominator;
+    uint8_t numerator = midi->numerator;
+
+    ERR_RET((measure_len <= 0) || (time <= 0), "invalid args");
+
+    uint16_t beat_unit = measure_len / numerator;
+    uint16_t step_factor = beat_unit * (4 / denominator);
+
+    int index = 0;
+    while (time > step_factor)
+    {
+        index++;
+        step_factor *= 2;
+    }
+
+    // きりの良い時間にならない場合は符点を付加
+    dot = ((time - step_factor) > 0);
+    *target = note_types[index];
+error_return:
+    return dot;
+}
+
+static void measure_start(FILE *fp, char *buf, int ch, int measure, v_midi_t *midi)
+{
+    // clef on first
+    if (!measure)
+    {
+        snprintf(buf, BUF_SIZE, MXL_PART_HEADER_TEMPLATE, ch + 1, measure + 1, midi->numerator, midi->denominator);
+        fprintf(fp, "%s", buf);
+    }
+    else
+    {
+        snprintf(buf, BUF_SIZE, MXL_MEASURE_START_TEMPLATE, measure + 1);
+        fprintf(fp, "%s", buf);
+    }
+}
+
+static void measure_end(FILE *fp)
+{
+    fprintf(fp, "%s", MXL_MEASURE_END);
+    fflush(fp);
+}
+
+static void print_rest(FILE *fp, char *buf, uint16_t pre_rest, const char *glyph, bool has_dot)
+{
+    const char *template = has_dot ? MXL_REST_DOT_TEMPLATE : MXL_REST_TEMPLATE;
+    snprintf(buf, BUF_SIZE, template, pre_rest);
+    fprintf(fp, "%s", buf);
+}
+
+v_note_t spare_notes[64];
+
+static void sort_and_split_note(struct tq_head *head, uint16_t rest_base)
+{
+    int spare_num = 0;
+    int spare_index;
+
+    v_note_t *note = NULL, *iter, *temp;
+
+    bool chord;
+    do
+    {
+        chord = false;
+        spare_index = 0;
+        TAILQ_FOREACH_SAFE(iter, head, entry, temp)
+        {
+            // 小節またぎ
+            if (((iter->next_time % rest_base) + iter->next_value) > rest_base)
+            {
+                memcpy(&spare_notes[spare_num + spare_index], iter, sizeof(v_note_t));
+                int pre = rest_base - (iter->next_time % rest_base);
+                iter->next_value -= pre;
+                iter->next_time += pre;
+                iter->flag |= NOTE_FLAG_TIE_STOP;
+
+                spare_notes[spare_num + spare_index].next_value = pre;
+                spare_notes[spare_num + spare_index].flag |= NOTE_FLAG_TIE_START;
+                spare_notes[spare_num + spare_index].index = ~(0);
+                spare_index++;
+                TAILQ_REMOVE(head, iter, entry);
+                memset(&iter->entry, 0, sizeof(iter->entry));
+                // ループ中の削除のため抜けて再ループする必要がある
+                chord = true;
+                break;
+            }
+        }
+        for (int i = spare_num; i < (spare_num + spare_index); i++)
+        {
+            bool inserted = false;
+            TAILQ_FOREACH(iter, head, entry)
+            {
+                if (spare_notes[i].next_time < iter->next_time)
+                {
+                    TAILQ_INSERT_BEFORE(iter, &spare_notes[i], entry);
+                    inserted = true;
+                    break;
+                }
+            }
+            if (!inserted)
+                TAILQ_INSERT_TAIL(head, &spare_notes[i], entry);
+        }
+        spare_num += spare_index;
+    } while (chord);
+
+    do
+    {
+        chord = false;
+        spare_index = 0;
+        TAILQ_FOREACH_SAFE(iter, head, entry, temp)
+        {
+            // 小節内の長さかぶり
+            if (!note)
+            {
+                note = iter;
+                continue;
+            }
+
+            if (iter->next_time != note->next_time && iter->next_time < (note->next_time + note->next_value))
+            {
+                memcpy(&spare_notes[spare_index], note, sizeof(v_note_t));
+                uint16_t pre = iter->next_time - note->next_time;
+                note->next_value = pre;
+                spare_notes[spare_index].next_value -= pre;
+                spare_notes[spare_index].next_time += pre;
+                spare_notes[spare_index].index = ~(0);
+                spare_index++;
+                iter->flag |= NOTE_FLAG_CHORD;
+                spare_notes[spare_index].flag |= NOTE_FLAG_CHORD;
+                chord = true;
+                break;
+            }
+        }
+        for (int i = spare_num; i < (spare_num + spare_index); i++)
+        {
+            bool inserted = false;
+            TAILQ_FOREACH_SAFE(iter, head, entry, temp)
+            {
+                if (spare_notes[i].next_time < iter->next_time)
+                {
+                    TAILQ_INSERT_BEFORE(iter, &spare_notes[i], entry);
+                    inserted = true;
+                    break;
+                }
+            }
+            if (!inserted)
+                TAILQ_INSERT_TAIL(head, &spare_notes[i], entry);
+        }
+        spare_num += spare_index;
+    } while (chord);
+
+    do
+    {
+        chord = false;
+        spare_index = 0;
+        TAILQ_FOREACH(iter, head, entry)
+        {
+            // 和音
+            if (note->next_time == iter->next_time)
+            {
+                if ((iter->flag & NOTE_FLAG_CHORD) != NOTE_FLAG_CHORD)
+                {
+                    iter->flag |= NOTE_FLAG_CHORD;
+                    chord = true;
+                }
+                if ((note->flag & NOTE_FLAG_CHORD) != NOTE_FLAG_CHORD)
+                {
+                    note->flag |= NOTE_FLAG_CHORD;
+                    chord = true;
+                }
+            }
+            note = iter;
+        }
+
+    } while (chord);
+}
+
+static void print_note(v_midi_t *midi, FILE *fp, char *buf, v_note_t *note, uint16_t rest_base, int16_t *st, int16_t *en)
+{
+    const char *chord = (note->flag & NOTE_FLAG_CHORD) ? "    <chord/>\n" : "";
+    const char *tie = (note->flag & NOTE_FLAG_TIE_START) ? "    <tie type=\"start\"/>\n" : ((note->flag & NOTE_FLAG_TIE_STOP) ? "    <tie type=\"stop\"/>\n" : "");
     struct
     {
         char step;
@@ -817,7 +1010,59 @@ static char *midi_to_musicxml(v_midi_t *midi)
         {'A', 1},
         {'B', 0},
     };
-    char buf[512];
+
+    int octave = (note->pitch / 12) - 1;
+    char step = pitch_char[note->pitch % 12].step;
+    int8_t alter = pitch_char[note->pitch % 12].alter;
+    const char *glyph;
+    bool dot = time2glyph(rest_base, midi, note->next_value, &glyph);
+
+    const char *dotstr = dot ? "          <dot/>\n" : "";
+    if (alter)
+    {
+        snprintf(buf, BUF_SIZE, MXL_NOTE_TEMPLATE, step, octave, note->next_value, chord, tie, dotstr, glyph);
+        fprintf(fp, "%s", buf);
+    }
+    else
+    {
+        snprintf(buf, BUF_SIZE, MXL_NOTE_ALTER_TEMPLATE, step, alter, octave, note->next_value, chord, tie, dotstr, glyph);
+        fprintf(fp, "%s", buf);
+    }
+    *en = max(*en, (note->next_time % rest_base) + note->next_value);
+    note->next_value = 0;
+}
+
+static int16_t print_notes_measure(v_midi_t *midi, FILE *fp, char *buf, struct tq_head *head, uint16_t rest_base, int *note_pos)
+{
+    v_note_t *note, *temp;
+    sort_and_split_note(head, rest_base);
+    int16_t st, en;
+
+    st = rest_base;
+    en = 0;
+    TAILQ_FOREACH(note, head, entry)
+    {
+        print_note(midi, fp, buf, note, rest_base, &st, &en);
+    }
+
+    TAILQ_FOREACH_SAFE(note, head, entry, temp)
+    {
+        if (((*note_pos) + 1) == note->index)
+            (*note_pos)++;
+        TAILQ_REMOVE(head, note, entry);
+        memset(&note->entry, 0, sizeof(note->entry));
+    }
+    TAILQ_INIT(head);
+
+    return max(0, en - st);
+}
+
+static char *midi_to_musicxml(v_midi_t *midi)
+{
+    char *ret = NULL;
+    struct tq_head *head;
+
+    char buf[BUF_SIZE];
 
     ERR_RET(!midi, "no input");
 
@@ -832,7 +1077,7 @@ static char *midi_to_musicxml(v_midi_t *midi)
 
     fprintf(fp, "%s", MXL_HEADER);
 
-    int rest_base = get_measure_rest(midi);
+    uint16_t rest_base = get_measure_rest(midi);
     for (int i = 0; i < 16; i++)
     {
         if (!midi->channel[i].note_num)
@@ -845,92 +1090,96 @@ static char *midi_to_musicxml(v_midi_t *midi)
 
     for (int i = 0; i < 16; i++)
     {
-        printf("ch:%d processing...\n", i + 1);
+        if (!midi->channel[i].note_num)
+            continue;
+
+        d("ch:%d processing...\n", i + 1);
 
         v_note_t *note;
-        for (int j = 0, measure = 0; measure < midi->measure; measure++)
+        int note_pos = 0;
+
+        head = &_head;
+        TAILQ_INIT(head);
+
+        for (int measure = 0; measure < midi->measure; measure++)
         {
-            if (!measure)
-            {
-                snprintf(buf, sizeof(buf), MXL_PART_HEADER_TEMPLATE, i + 1, measure + 1, midi->numerator, midi->denominator);
-                fprintf(fp, "%s", buf);
-            }
-            else
-            {
-                snprintf(buf, sizeof(buf), MXL_MEASURE_START_TEMPLATE, measure + 1);
-                fprintf(fp, "%s", buf);
-            }
-            note = &midi->channel[i].notes[j++];
-            if (j >= midi->channel[i].note_num || !note || !note->pitch)
-            {
-                snprintf(buf, sizeof(buf), MXL_REST_TEMPLATE, rest_base, "whole");
-                fprintf(fp, "%s", buf);
-                fprintf(fp, "%s", MXL_MEASURE_END);
+            measure_start(fp, buf, i, measure, midi);
 
-                continue;
-            }
-            while (j < midi->channel[i].note_num && !note->value)
+            // 小節内の♩をキューに積む
+            uint16_t pre_rest = rest_base;
+            uint16_t rest;
+            uint16_t queue_cnt = 0;
+            for (int j = note_pos; j < midi->channel[i].note_num; j++)
             {
-                note = &midi->channel[i].notes[j++];
-            }
-            if (note->next_time >= (measure + 1) * rest_base)
-            {
-                // 全休符
-                snprintf(buf, sizeof(buf), MXL_REST_TEMPLATE, rest_base, "whole");
-                fprintf(fp, "%s", buf);
-                fprintf(fp, "%s", MXL_MEASURE_END);
-                continue;
-            }
-
-            int rest;
-            if (note->next_time % rest_base)
-            {
-                // 小節頭の休符
-                rest = rest_base - (note->delta_time % rest_base);
-
-                // TODO: あとで考える
-                snprintf(buf, sizeof(buf), MXL_REST_TEMPLATE, rest, "eighth");
-                fprintf(fp, "%s", buf);
-                fflush(fp);
-            }
-
-            rest = rest_base;
-            while (note->delta_time < (measure + 1) * rest_base)
-            {
-                char step = pitch_char[note->pitch % 12].step;
-                int8_t alter = pitch_char[note->pitch % 12].alter;
-                int8_t octave = (note->pitch / 12) - 1;
-                if (alter)
+                note = &midi->channel[i].notes[j];
+                if (note->next_time >= (measure + 1) * rest_base)
                 {
-                    // TODO: あとで
-                    snprintf(buf, sizeof(buf), MXL_NOTE_ALTER_TEMPLATE, step, alter, octave, note->value, "eighth");
-                    fprintf(fp, "%s", buf);
-                    fflush(fp);
-                    rest -= note->value;
+                    break;
                 }
-                else
+                if (note->next_time < measure * rest_base)
                 {
-                    // TODO: あとで考える
-                    snprintf(buf, sizeof(buf), MXL_NOTE_TEMPLATE, step, octave, note->value, "eighth");
-                    fprintf(fp, "%s", buf);
-                    fflush(fp);
-                    rest -= note->value;
+                    if (note->next_value)
+                        printf("### ERROR: meas:%d j:%d d:%d next:%d\n", measure, j, rest_base, note->next_time);
+                    else
+                        j++;
                 }
-                note = &midi->channel[i].notes[j++];
-                while (j < midi->channel[i].note_num && note && !note->value)
+                if (note->next_value)
                 {
-                    note = &midi->channel[i].notes[j++];
+                    pre_rest = min(note->next_time % rest_base, pre_rest);
+
+                    // 大丈夫だとは思うが念のため
+                    bool inserted = false;
+                    v_note_t *iter;
+                    note->flag = 0;
+                    memset(&note->entry, 0, sizeof(note->entry));
+                    TAILQ_FOREACH(iter, head, entry)
+                    {
+                        if (note->next_time < iter->next_time)
+                        {
+                            TAILQ_INSERT_BEFORE(iter, note, entry);
+                            inserted = true;
+                            break;
+                        }
+                    }
+                    if (!inserted)
+                    {
+                        TAILQ_INSERT_TAIL(head, note, entry);
+                    }
+                    queue_cnt++;
+                    if (measure == 20)
+                    {
+                        v_note_t *temp = head->tqh_first;
+                        int tempcnt = 0;
+                        while (temp)
+                        {
+                            printf("meas:%d %d: %p p:%p n:%p\n", measure, tempcnt++, temp, temp->entry.tqe_prev, temp->entry.tqe_next);
+                            fflush(stdout);
+                            temp = temp->entry.tqe_next;
+                        }
+                    }
                 }
             }
-            if (rest > 0)
+            printf("meas:%d queue:%d\n", measure, queue_cnt);
+
+            if (pre_rest)
             {
-                // TODO: あとで考える
-                snprintf(buf, sizeof(buf), MXL_REST_TEMPLATE, rest, "eighth");
-                fprintf(fp, "%s", buf);
-                fflush(fp);
+                const char *glyph;
+                bool dot = time2glyph(rest_base, midi, pre_rest, &glyph);
+                print_rest(fp, buf, pre_rest, glyph, dot);
             }
-            fprintf(fp, "%s", MXL_MEASURE_END);
-            fflush(fp);
+            rest = rest_base - pre_rest;
+
+            if (head->tqh_first)
+                rest -= print_notes_measure(midi, fp, buf, head, rest_base, &note_pos);
+
+            if (rest)
+            {
+                const char *glyph;
+                bool dot = time2glyph(rest_base, midi, rest, &glyph);
+                print_rest(fp, buf, pre_rest, glyph, dot);
+            }
+
+            measure_end(fp);
         }
         fprintf(fp, "%s", MXL_PART_END);
         fflush(fp);
@@ -944,43 +1193,56 @@ static char *midi_to_musicxml(v_midi_t *midi)
 error_return:
     return ret;
 }
+#endif
 
 static v_status_t v_midi_init(void)
 {
     execute_command("rm", "-rf", "/tmp/temp_*", NULL);
-    return mxl_ops->init();
+    return pdf_ops->init();
+}
+
+static char *midi2pdf(const char *path)
+{
+    int fd = mkstemps(pdf_file, PDF_EXT_LEN);
+    close(fd);
+    execute_command(MUSESCORE, path, "-o", pdf_file);
+    return pdf_file;
 }
 
 static v_status_t v_midi_open(const char *path)
 {
+#if 0
     g_midi = load_midi(path);
 
     char *mpath = midi_to_musicxml(g_midi);
-    return mxl_ops->open(mpath);
+    return pdf_ops->open(mpath);
+#endif
+    const char *pdf_path = midi2pdf(path);
+    return pdf_ops->open(pdf_path);
 }
 static int v_midi_pagenum(void)
 {
-    return mxl_ops->pagenum();
+    return pdf_ops->pagenum();
 }
 static v_status_t v_midi_size(int *width, int *height)
 {
-    return mxl_ops->size(width, height);
+    return pdf_ops->size(width, height);
 }
 static v_status_t v_midi_pixel(uint8_t *data, int page, int rowstride, v_scale_t ctm)
 {
-    return mxl_ops->pixel(data, page, rowstride, ctm);
+    return pdf_ops->pixel(data, page, rowstride, ctm);
 }
 static void v_midi_free(void)
 {
-    return mxl_ops->free();
+    return pdf_ops->free();
 }
 static v_annots_t *v_midi_annots(void)
 {
-    return mxl_ops->annots();
+    return pdf_ops->annots();
 }
 static void v_midi_save(const char *path)
 {
-    return mxl_ops->save(path);
+    return pdf_ops->save(path);
 }
 
 const char *MXL_HEADER = R"(<?xml version="1.0" encoding="UTF-8" standalone="no"?>
@@ -1021,6 +1283,7 @@ const char *MXL_NOTE_TEMPLATE = R"(      <note>
           <octave>%d</octave>
         </pitch>
         <duration>%d</duration>
+%s%s%s
         <type>%s</type>
       </note>
 )";
@@ -1031,6 +1294,7 @@ const char *MXL_NOTE_ALTER_TEMPLATE = R"(      <note>
           <octave>%d</octave>
         </pitch>
         <duration>%d</duration>
+%s%s%s
         <type>%s</type>
       </note>
 )";
@@ -1038,6 +1302,13 @@ const char *MXL_REST_TEMPLATE = R"(      <note>
           <rest/>
           <duration>%d</duration>
           <type>%s</type>
+      </note>
+)";
+const char *MXL_REST_DOT_TEMPLATE = R"(      <note>
+          <rest/>
+          <duration>%d</duration>
+          <type>%s</type>
+          <dot/>
       </note>
 )";
 

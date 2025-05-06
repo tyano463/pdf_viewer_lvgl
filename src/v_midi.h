@@ -79,6 +79,10 @@ typedef struct str_yamaha_xf
     uint8_t ver;
 } yamaha_xf_t;
 
+#define NOTE_FLAG_CHORD (1 << 0)
+#define NOTE_FLAG_TIE_START (1 << 1)
+#define NOTE_FLAG_TIE_STOP (1 << 2)
+
 typedef struct str_v_note
 {
     TAILQ_ENTRY(str_v_note)
@@ -86,10 +90,12 @@ typedef struct str_v_note
     uint32_t delta_time;
     uint32_t next_time;
     uint16_t value;
+    uint16_t next_value;
     uint16_t index;
     uint8_t pitch;
     uint8_t velocity;
     uint8_t channel;
+    uint8_t flag;
 } v_note_t;
 
 typedef struct str_v_midi_channel

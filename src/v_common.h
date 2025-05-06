@@ -17,6 +17,13 @@
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 #endif
 
+#ifndef TAILQ_FOREACH_SAFE
+#define TAILQ_FOREACH_SAFE(var, head, field, tvar)                       \
+    for ((var) = TAILQ_FIRST((head)), (tvar) = TAILQ_NEXT((var), field); \
+         (var) && ((var) != TAILQ_NEXT((var), field));                   \
+         (var) = (tvar), (tvar) = (var ? TAILQ_NEXT((var), field) : NULL))
+#endif
+
 #define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 
 #define d(x, ...)                                                                          \
@@ -106,6 +113,7 @@ typedef enum
     ST_PDF_ANNOTATION_FAILED,
     ST_PNG_OPEN_FAILED,
     ST_MXL_OPEN_FAILED,
+    ST_MIDI_OPEN_FAILED,
     ST_SVG_OPEN_FAILED,
     ST_JPEG_OPEN_FAILED,
     ST_MENU_OPEN_FAIL,

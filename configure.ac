@@ -4,6 +4,7 @@ AM_INIT_AUTOMAKE([foreign -Wno-portability no-dependencies])
 
 AC_CANONICAL_HOST
 
+CFLAGS="-g -O0"
 AC_PROG_CC
 AC_PROG_CXX
 AC_PROG_RANLIB

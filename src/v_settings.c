@@ -13,8 +13,8 @@
 
 // #define PDF_FILE "/usr/share/sample.pdf"
 // #define PDF_FILE "/home/tyano/Documents/annot.pdf"
-// #define PDF_FILE "/home/tyano/Downloads/musicxml/Echigo-Jishi.musicxml"
-#define PDF_FILE "/home/tyano/Downloads/R02117G2.mid"
+#define PDF_FILE "/home/tyano/Downloads/musicxml/Echigo-Jishi.musicxml"
+// #define PDF_FILE "/home/tyano/Downloads/R02117G2.mid"
 #define EN "en"
 #define JA "ja"
 #define FALLBACK_LANG EN
