@@ -1,10 +1,31 @@
 #ifndef __V_CANVAS_H__
 #define __V_CANVAS_H__
 
+#include <sys/queue.h>
 #include <lvgl/lvgl.h>
 
 #include "v_common.h"
 #include "v_pen.h"
+
+typedef uint8_t v_draw_kind_t;
+enum
+{
+    V_DRAW_KIND_ANNOT,
+    V_DRAW_KIND_ERASE,
+    V_DRAW_KIND_SHOW_ALL,
+    V_DRAW_KIND_HIDE_ALL,
+    V_DRAW_KIND_USER,
+    V_DRAW_KIND_MAX,
+};
+
+typedef struct str_v_draw_event
+{
+    TAILQ_ENTRY(str_v_draw_event)
+    entry;
+    v_draw_kind_t kind;
+    void *arg;
+    void (*user_callback)(void *);
+} v_draw_event_t;
 
 typedef struct str_v_image
 {
@@ -40,6 +61,8 @@ typedef struct str_v_freetext
 
 typedef struct str_v_annot
 {
+    TAILQ_ENTRY(str_v_annot)
+    entry;
     void *pdf_annot_obj;
     v_matrix_t matrix;
     v_annot_kind_t kind;
@@ -79,6 +102,7 @@ typedef struct str_v_viewer_ops
     void (*set_touch_callback)(lv_event_cb_t cb);
     void (*show_annot)(void);
     void (*hide_annot)(void);
+    void (*queue)(v_draw_event_t *ev);
 } v_viewer_ops_t;
 
 v_viewer_ops_t *v_get_canvas_ops(void);

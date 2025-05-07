@@ -52,5 +52,11 @@
     "C_Cpp.errorSquiggles": "disabled",
     "[jsonc]": {
         "editor.defaultFormatter": "vscode.json-language-features"
+    },
+    "github.copilot.enable": {
+        "*": false,
+        "plaintext": false,
+        "markdown": false,
+        "scminput": false
     }
 }

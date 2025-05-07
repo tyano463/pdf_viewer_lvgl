@@ -67,6 +67,7 @@ typedef struct str_v_pen_ops
 {
     v_status_t (*init)(lv_obj_t *parent, v_pen_cb_ops_t *ops);
     void (*draw)(float x, float y, float pressure, v_pen_draw_mode_t mode);
+    void (*select)(float x, float y, v_pen_draw_mode_t mode);
     void (*show_icon)(void);
     void (*hide_icon)(void);
 } v_pen_ops_t;

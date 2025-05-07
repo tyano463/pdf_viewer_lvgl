@@ -18,6 +18,7 @@ pdf_viewer_lvgl_LDADD = $(STATIC_LIB)
 pdf_viewer_lvgl_SOURCES = src/main.c \
 	src/v_mouse_cursor.c \
 	src/v_menu.c \
+	src/v_colorpicker.c \
 	src/v_pdf.c \
 	src/v_log.c \
 	src/v_file.c \
@@ -28,6 +29,7 @@ pdf_viewer_lvgl_SOURCES = src/main.c \
 	src/v_canvas.c \
 	src/v_settings.c \
 	src/v_pen.c \
+	src/v_slider.c \
 	src/v_png.c \
 	src/v_midi.c \
 	src/v_musicxml.c \

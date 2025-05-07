@@ -3,8 +3,13 @@
 #include "v_canvas.h"
 #include "v_icon.h"
 #include "v_assets_list.h"
+#include "v_colorpicker.h"
+#include "v_slider.h"
 
 #define COORD_CHUNK_NUM 100
+
+static void color_callback(uint32_t argb);
+static void width_callback(uint8_t width);
 
 static lv_obj_t *pen_button;
 static lv_obj_t *book_button;
@@ -13,7 +18,12 @@ static v_pen_cb_ops_t *cbs;
 static v_stroke_t *active;
 
 static v_mode_t mode;
-
+lv_area_t g_slider_rect = {
+    .x1 = 600,
+    .y1 = 0,
+    .x2 = 700,
+    .y2 = 20,
+};
 static void mode_change(lv_event_t *e)
 {
     if (cbs)
@@ -23,12 +33,16 @@ static void mode_change(lv_event_t *e)
             mode = MODE_PEN;
             lv_obj_add_flag(book_button, LV_OBJ_FLAG_HIDDEN);
             lv_obj_remove_flag(pen_button, LV_OBJ_FLAG_HIDDEN);
+            v_show_color_picker(color_callback, lv_screen_active(), 300, 0);
+            v_show_slider(width_callback, lv_screen_active(), &g_slider_rect, 48);
         }
         else
         {
             mode = MODE_NORMAL;
             lv_obj_remove_flag(book_button, LV_OBJ_FLAG_HIDDEN);
             lv_obj_add_flag(pen_button, LV_OBJ_FLAG_HIDDEN);
+            v_hide_color_picker();
+            v_hide_slider();
         }
         d("mode -> %d", mode);
         cbs->on_mode_change(mode);
@@ -58,6 +72,16 @@ static void v_pen_draw(float x, float y, float pressure, v_pen_draw_mode_t mode)
         active->points[active->num].y = y;
         active->points[active->num].pressure = pressure;
         active->num++;
+    }
+}
+
+static void v_pen_select(float x, float y, v_pen_draw_mode_t mode)
+{
+    if (mode == V_PEN_DRAW_START)
+    {
+    }
+    else if (mode == V_PEN_DRAW_END)
+    {
     }
 }
 
@@ -102,13 +126,30 @@ static void set_pen_icon_visivility(bool vis)
     }
 }
 
+static void width_callback(uint8_t width)
+{
+    d("width: %d", width);
+}
+static void color_callback(uint32_t argb)
+{
+    d("color: %08x", argb);
+}
+
 static void hide_pen_icon(void)
 {
     set_pen_icon_visivility(false);
+    v_hide_color_picker();
+    v_hide_slider();
 }
 static void show_pen_icon(void)
 {
     set_pen_icon_visivility(true);
+    if (mode == MODE_PEN)
+    {
+        d("");
+        v_show_color_picker(color_callback, lv_screen_active(), 300, 0);
+        v_show_slider(width_callback, lv_screen_active(), &g_slider_rect, 48);
+    }
 }
 static void init_ops(void)
 {
@@ -116,6 +157,7 @@ static void init_ops(void)
     {
         ops.init = v_pen_init;
         ops.draw = v_pen_draw;
+        ops.select = v_pen_select;
         ops.show_icon = show_pen_icon;
         ops.hide_icon = hide_pen_icon;
     }

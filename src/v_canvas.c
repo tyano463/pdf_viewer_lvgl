@@ -16,13 +16,14 @@ static v_status_t v_show_image(v_image_t *im, float);
 static void v_set_touch_callback(lv_event_cb_t cb);
 static void v_show_annot(void);
 static void v_hide_annot(void);
+static void v_queue(v_draw_event_t *ev);
 extern lv_font_t source_hans_16;
 extern lv_font_t source_hans_20;
 extern lv_font_t source_hans_24;
 
 lv_obj_t *canvas;
+
 LV_DRAW_BUF_DEFINE_STATIC(canvas_buf, WIDTH, HEIGHT, LV_COLOR_FORMAT_ARGB8888);
-static lv_layer_t layer;
 static pthread_t *th;
 static pthread_mutex_t *mutex;
 static bool running;
@@ -33,6 +34,14 @@ static lv_obj_t *image;
 
 static v_viewer_ops_t ops;
 static float g_scale;
+
+TAILQ_HEAD(tq_head, str_v_draw_event)
+_head;
+static struct tq_head *head;
+TAILQ_HEAD(an_head, str_v_annot)
+_ahead;
+static struct an_head *an_head;
+static void (*draw_func[V_DRAW_KIND_MAX])(v_draw_event_t *event);
 
 static void init_ops(void)
 {
@@ -47,6 +56,7 @@ static void init_ops(void)
         ops.remove_annot = v_remove_annot;
         ops.show_annot = v_show_annot;
         ops.hide_annot = v_hide_annot;
+        ops.queue = v_queue;
     }
 }
 
@@ -70,10 +80,23 @@ static void v_add_freetext(v_annot_t *annot)
 {
     v_freetext_t *t = &annot->data.freetext;
 
+    int16_t w, h;
+    w = lv_obj_get_width(canvas);
+    h = lv_obj_get_width(canvas);
+
+    annot->pdf_annot_obj = (void *)lv_canvas_create(image);
+    lv_draw_buf_t *d = malloc(sizeof(lv_draw_buf_t) + w * h * 4);
+    lv_obj_t *a = annot->pdf_annot_obj;
+    lv_draw_buf_init(d, w, h, LV_COLOR_FORMAT_ARGB8888, w * 4, &d[1], w * h * 4);
+    lv_draw_buf_set_flag(d, LV_IMAGE_FLAGS_MODIFIABLE);
+    lv_canvas_set_draw_buf(a, d);
+    lv_canvas_fill_bg(a, lv_color_hex3(0xccc), LV_OPA_TRANSP);
+    lv_layer_t l;
+
     lv_image_dsc_t *imdsc = (lv_image_dsc_t *)lv_image_get_src(image);
-    int32_t ox = (lv_obj_get_width(canvas) - imdsc->header.w) / 2;
+    int32_t ox = (w - imdsc->header.w) / 2;
     int32_t oy = 0;
-    lv_canvas_init_layer(canvas, &layer);
+    lv_canvas_init_layer(a, &l);
 
     lv_draw_label_dsc_t *dsc = calloc(sizeof(lv_draw_label_dsc_t), 1);
     lv_draw_label_dsc_init(dsc);
@@ -89,9 +112,9 @@ static void v_add_freetext(v_annot_t *annot)
     coord.x2 = (int32_t)t->position.right * g_scale + ox;
     coord.y2 = (int32_t)t->position.bottom * g_scale + oy;
 
-    lv_draw_label(&layer, dsc, &coord);
+    lv_draw_label(&l, dsc, &coord);
     d("%s %d,%d,%d,%d", dsc->text, coord.x1, coord.y1, coord.x2, coord.y2);
-    lv_canvas_finish_layer(canvas, &layer);
+    lv_canvas_finish_layer(a, &l);
 }
 
 static void v_add_inklist(v_annot_t *annot)
@@ -99,10 +122,24 @@ static void v_add_inklist(v_annot_t *annot)
     v_inklist_t *il = &annot->data.inklist;
 
     lv_image_dsc_t *imdsc = (lv_image_dsc_t *)lv_image_get_src(image);
-    int32_t ox = (lv_obj_get_width(canvas) - imdsc->header.w) / 2;
+    int16_t w, h;
+    w = lv_obj_get_width(canvas);
+    h = lv_obj_get_height(canvas);
+    int32_t ox = (w - imdsc->header.w) / 2;
     int32_t oy = 0;
 
-    lv_canvas_init_layer(canvas, &layer);
+    annot->pdf_annot_obj = (void *)lv_canvas_create(image);
+    lv_draw_buf_t *d = malloc(sizeof(lv_draw_buf_t) + w * h * 4);
+    lv_obj_t *a = annot->pdf_annot_obj;
+    lv_draw_buf_init(d, w, h, LV_COLOR_FORMAT_ARGB8888, w * 4, &d[1], w * h * 4);
+    lv_draw_buf_set_flag(d, LV_IMAGE_FLAGS_MODIFIABLE);
+    lv_canvas_set_draw_buf(a, d);
+    lv_canvas_fill_bg(a, lv_color_hex3(0xccc), LV_OPA_TRANSP);
+    lv_layer_t l;
+
+    lv_obj_set_size(a, w, h);
+
+    lv_canvas_init_layer(a, &l);
     for (int i = 0; i < il->num; i++)
     {
         v_stroke_t *st = &il->strokes[i];
@@ -119,10 +156,10 @@ static void v_add_inklist(v_annot_t *annot)
             dsc->color.blue = il->pen.color.c.blue;
             dsc->opa = il->pen.color.c.alpha;
             dsc->width = il->pen.size;
-            lv_draw_line(&layer, dsc);
+            lv_draw_line(&l, dsc);
         }
     }
-    lv_canvas_finish_layer(canvas, &layer);
+    lv_canvas_finish_layer(a, &l);
 }
 
 static void v_add_annot(v_annot_t *annot)
@@ -134,6 +171,7 @@ static void v_add_annot(v_annot_t *annot)
         (void (*)(v_annot_t *))v_add_freetext,
     };
 
+    TAILQ_INSERT_TAIL(an_head, annot, entry);
     func[annot->kind](annot);
 
 error_return:
@@ -169,12 +207,51 @@ v_viewer_ops_t *v_get_canvas_ops(void)
     init_ops();
     return &ops;
 }
-static void draw_thread_init(void)
+
+static void v_queue(v_draw_event_t *ev)
+{
+    pthread_mutex_lock(mutex);
+    TAILQ_INSERT_TAIL(head, ev, entry);
+    pthread_mutex_unlock(mutex);
+}
+
+static void draw_annot(v_draw_event_t *e) {}
+static void draw_erase(v_draw_event_t *e) {}
+static void show_all(v_draw_event_t *e)
+{
+    v_set_annot_visibility(false);
+}
+static void hide_all(v_draw_event_t *e)
 {
 
+    v_set_annot_visibility(true);
+}
+static void draw_user(v_draw_event_t *e)
+{
+    ERR_RETn(!e || !e->arg);
+    ERR_RETn(!e->user_callback);
+    e->user_callback(e->arg);
+error_return:
+    return;
+}
+static void draw_func_init(void)
+{
+    draw_func[V_DRAW_KIND_ANNOT] = draw_annot;
+    draw_func[V_DRAW_KIND_ERASE] = draw_erase;
+    draw_func[V_DRAW_KIND_SHOW_ALL] = show_all;
+    draw_func[V_DRAW_KIND_HIDE_ALL] = hide_all;
+    draw_func[V_DRAW_KIND_USER] = draw_user;
+}
+static void draw_thread_init(void)
+{
+    head = &_head;
+    an_head = &_ahead;
+    TAILQ_INIT(head);
+    TAILQ_INIT(an_head);
     mutex = lv_malloc(sizeof(pthread_mutex_t));
     pthread_mutex_init(mutex, NULL);
     th = lv_malloc(sizeof(pthread_t));
+    draw_func_init();
     running = true;
     pthread_create(th, NULL, draw_main, NULL);
 }
@@ -229,35 +306,43 @@ static v_status_t v_show_image(v_image_t *im, float current_scale)
     d("scale:%.02f", current_scale);
 
     g_scale = current_scale;
-    d("");
     uint8_t *data = lv_malloc(im->size);
-    d("");
     lv_memcpy(data, im->buf, im->size);
-    d("");
 
     dsc->data = data;
-    d("");
     dsc->header.cf = im->format;
-    d("");
     dsc->header.w = im->width;
     dsc->header.h = im->height;
-    d("");
     dsc->header.magic = LV_IMAGE_HEADER_MAGIC;
-    d("");
     dsc->data_size = im->size;
-    d("");
     lv_img_set_src(image, dsc);
-    d("");
     return ST_SUCCESS;
 }
 
 static void *draw_main(void *arg)
 {
+    v_draw_event_t *event;
     while (running)
     {
         pthread_mutex_lock(mutex);
-
-        pthread_mutex_unlock(mutex);
+        if (TAILQ_FIRST(head))
+        {
+            event = TAILQ_FIRST(head);
+            TAILQ_REMOVE(head, event, entry);
+            pthread_mutex_unlock(mutex);
+            if (event->kind < V_DRAW_KIND_MAX)
+            {
+                draw_func[event->kind](event);
+            }
+            else
+            {
+                d("");
+            }
+        }
+        else
+        {
+            pthread_mutex_unlock(mutex);
+        }
         usleep(10000);
     }
     return NULL;
@@ -265,5 +350,6 @@ static void *draw_main(void *arg)
 
 static void v_set_touch_callback(lv_event_cb_t cb)
 {
-    lv_obj_add_event_cb(canvas, cb, LV_EVENT_PRESSED | LV_EVENT_RELEASED, NULL);
+    lv_obj_add_flag(canvas, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(canvas, cb, LV_EVENT_ALL, NULL);
 }

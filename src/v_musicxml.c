@@ -132,13 +132,10 @@ static const char *musicxml2pdf(const char *mxl)
 
     const char *result = execute_command(VEROVIO, "--all-pages", mxl, "-o", svg_file);
     ERR_RET(!result, "convert failed");
-    d("");
 
     char **files = list_sequence_files(svg_file);
-    d("");
 
     file = multi_svg2pdf(files);
-    d("");
 
 error_return:
     return file;

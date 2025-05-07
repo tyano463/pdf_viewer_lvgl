@@ -75,6 +75,7 @@ int main(int argc, char **argv)
     status = menu_ops->init(scr, &menu_cbs);
     ERR_RET(status != ST_SUCCESS, "menu init");
 
+    d("set_touch_callback");
     view_ops->set_touch_callback(pdf_callback);
     pen_cbs.on_mode_change = mode_changed;
     pen_ops = v_pen_getops();
@@ -116,7 +117,7 @@ static void save_as(const char *file)
 
 static void show_mode(v_show_mode_t mode)
 {
-    d("mode:%d", mode);
+    d("mode:%s(%d)", v_show_mode_t_to_string(mode), mode);
     switch (mode)
     {
     case V_SHOW_MODE_ANNOT_WITH_MENU:
@@ -133,6 +134,9 @@ static void show_mode(v_show_mode_t mode)
         menu_ops->hide_icon();
         view_ops->hide_annot();
         pen_ops->hide_icon();
+        break;
+    case V_SHOW_MODE_MAX:
+    default:
         break;
     }
 }
@@ -164,39 +168,56 @@ static void pdf_callback(lv_event_t *e)
     lv_indev_t *indev = lv_indev_active();
     lv_indev_get_point(indev, &point);
 
-    if (code == LV_EVENT_PRESSED)
+    if (mode == MODE_PEN)
     {
-        touch_point.x = point.x;
-        touch_point.y = point.y;
-        d("touch %d,%d", point.x, point.y);
-        if (mode == MODE_PEN)
+        // clang-format off
+        v_pen_draw_mode_t mode =
+            (code == LV_EVENT_PRESSED) ? V_PEN_DRAW_START :
+            (code == LV_EVENT_PRESSING) ? V_PEN_DRAW_MOVE :
+            (code == LV_EVENT_RELEASED) ? V_PEN_DRAW_END :
+                    -1;
+        // clang-format on
+
+        if (mode >= 0)
         {
-            // ops->draw(point.x, point.y, 0, V_PEN_DRAW_START);
-        }
-        else
-        {
+            pen_ops->draw((float)point.x, (float)point.y, 1, mode);
         }
     }
-    else if (code == LV_EVENT_RELEASED)
+    else if (mode == MODE_SELECT)
     {
-        if (distance(&touch_point, &point) < THRESHOLD)
+        // clang-format off
+        v_pen_draw_mode_t mode =
+            (code == LV_EVENT_PRESSED) ? V_PEN_DRAW_START :
+            (code == LV_EVENT_RELEASED) ? V_PEN_DRAW_END :
+                    -1;
+        // clang-format on
+
+        if (mode >= 0)
         {
-            d("tapped");
+            pen_ops->select((float)point.x, (float)point.y, mode);
         }
-        else
+    }
+    else if (mode == MODE_NORMAL)
+    {
+        if (code == LV_EVENT_PRESSED)
         {
-            d("swiped %d,%d", point.x, point.y);
-            if (mode == MODE_PEN)
+            touch_point.x = point.x;
+            touch_point.y = point.y;
+        }
+        else if (code == LV_EVENT_PRESSING)
+        {
+        }
+        else if (code == LV_EVENT_RELEASED)
+        {
+
+            if (distance(&touch_point, &point) < THRESHOLD)
             {
-                //    ops->draw(point.x, point.y, 0, V_PEN_DRAW_END);
+                d("tapped");
             }
-        }
-    }
-    else
-    {
-        if (mode == MODE_PEN)
-        {
-            // ops->draw(point.x, point.y, 0, V_PEN_DRAW_MOVE);
+            else
+            {
+                d("swiped %d,%d", point.x, point.y);
+            }
         }
     }
 }
@@ -311,17 +332,12 @@ static v_status_t show_page(v_format_t format, const char *path, uint16_t page)
     image.width = w;
     image.size = w * h * 4;
     view_ops->show_image(&image, scale);
-    d("");
 
     status = ST_SUCCESS;
-    d("");
     ERR_RETn(!ops->annots);
-    d("");
     v_annots_t *annots = ops->annots();
-    d("");
     ERR_RETn(!annots);
 
-    d("");
     for (int i = 0; i < annots->num; i++)
     {
         v_annot_kind_t k = annots->annot[i].kind;

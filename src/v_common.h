@@ -5,8 +5,8 @@
 #include <stdint.h>
 
 #define APP_NAME "pdf_viewer_lvgl"
-#define WIDTH 1024
-#define HEIGHT 768
+#define WIDTH 768
+#define HEIGHT 1024
 
 #ifndef min
 #define min(a, b) (((b) < (a)) ? (b) : (a))
@@ -49,19 +49,41 @@
         }                                                                                                 \
     } while (0)
 
-typedef enum
-{
-    MODE_NORMAL,
-    MODE_PEN,
-} v_mode_t;
-typedef uint8_t v_show_mode_t;
-enum
-{
-    V_SHOW_MODE_ANNOT_WITH_MENU,
-    V_SHOW_MODE_ANNOT_NO_MENU,
-    V_SHOW_MODE_SCORE_ONLY,
-    V_SHOW_MODE_MAX,
-};
+#define DEFINE_ENUM_WITH_STRINGS(name, LIST)               \
+    typedef enum                                           \
+    {                                                      \
+        LIST(DEFINE_ENUM_ELEMENT)                          \
+    } name;                                                \
+                                                           \
+    static inline const char *name##_to_string(name value) \
+    {                                                      \
+        switch (value)                                     \
+        {                                                  \
+            LIST(DEFINE_ENUM_CASE)                         \
+        default:                                           \
+            return "UNKNOWN";                              \
+        }                                                  \
+    }
+
+#define DEFINE_ENUM_ELEMENT(e) e,
+#define DEFINE_ENUM_CASE(e) \
+    case e:                 \
+        return #e;
+
+#define MODE_ITEMS(X) \
+    X(MODE_NORMAL)    \
+    X(MODE_PEN)       \
+    X(MODE_SELECT)
+
+DEFINE_ENUM_WITH_STRINGS(v_mode_t, MODE_ITEMS);
+
+#define SHOW_MODE_ITEMS(X)         \
+    X(V_SHOW_MODE_ANNOT_WITH_MENU) \
+    X(V_SHOW_MODE_ANNOT_NO_MENU)   \
+    X(V_SHOW_MODE_SCORE_ONLY)      \
+    X(V_SHOW_MODE_MAX)
+
+DEFINE_ENUM_WITH_STRINGS(v_show_mode_t, SHOW_MODE_ITEMS);
 
 typedef uint8_t v_annot_display_t;
 enum
