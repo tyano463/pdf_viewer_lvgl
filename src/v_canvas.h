@@ -98,7 +98,7 @@ typedef struct str_v_viewer_ops
     void (*show_frame)(v_annot_t *annot);
     void (*remove_annot)(v_annot_t *annot);
     void (*set_mode)(v_show_mode_t mode);
-    v_status_t (*show_image)(v_image_t *image, float current_scale);
+    v_status_t (*show_image)(v_image_t *image);
     void (*set_touch_callback)(lv_event_cb_t cb);
     void (*show_annot)(void);
     void (*hide_annot)(void);

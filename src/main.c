@@ -25,7 +25,7 @@
 static void init(void);
 static v_status_t disp_init(void);
 static void file_opened(const char *);
-static void mode_changed(v_mode_t);
+static void user_mode_changed(v_user_mode_t);
 static void pdf_callback(lv_event_t *e);
 static v_format_t get_format(const char *path);
 static v_status_t show_page(v_format_t format, const char *path, uint16_t page);
@@ -35,7 +35,7 @@ static v_pen_cb_ops_t pen_cbs;
 static v_pen_ops_t *pen_ops;
 static v_menu_cb_ops_t menu_cbs;
 static v_menu_ops_t *menu_ops;
-static v_mode_t mode;
+static v_user_mode_t g_user_mode;
 static lv_point_t touch_point;
 static v_draw_ops_t *(*draw_ops[V_FORMAT_MAX])(void);
 static uint8_t *orig_data;
@@ -77,7 +77,7 @@ int main(int argc, char **argv)
 
     d("set_touch_callback");
     view_ops->set_touch_callback(pdf_callback);
-    pen_cbs.on_mode_change = mode_changed;
+    pen_cbs.on_user_mode_change = user_mode_changed;
     pen_ops = v_pen_getops();
     ERR_RET(!pen_ops, "pen ops");
 
@@ -168,22 +168,22 @@ static void pdf_callback(lv_event_t *e)
     lv_indev_t *indev = lv_indev_active();
     lv_indev_get_point(indev, &point);
 
-    if (mode == MODE_PEN)
+    if (g_user_mode == V_USER_MODE_PEN)
     {
         // clang-format off
         v_pen_draw_mode_t mode =
             (code == LV_EVENT_PRESSED) ? V_PEN_DRAW_START :
             (code == LV_EVENT_PRESSING) ? V_PEN_DRAW_MOVE :
             (code == LV_EVENT_RELEASED) ? V_PEN_DRAW_END :
-                    -1;
+                    V_PEN_DRAW_MAX;
         // clang-format on
 
-        if (mode >= 0)
+        if (mode < V_PEN_DRAW_MAX)
         {
-            pen_ops->draw((float)point.x, (float)point.y, 1, mode);
+            pen_ops->draw(point.x, point.y, 1, mode);
         }
     }
-    else if (mode == MODE_SELECT)
+    else if (g_user_mode == V_USER_MODE_SELECT)
     {
         // clang-format off
         v_pen_draw_mode_t mode =
@@ -192,12 +192,12 @@ static void pdf_callback(lv_event_t *e)
                     -1;
         // clang-format on
 
-        if (mode >= 0)
+        if (mode < V_PEN_DRAW_MAX)
         {
             pen_ops->select((float)point.x, (float)point.y, mode);
         }
     }
-    else if (mode == MODE_NORMAL)
+    else if (g_user_mode == V_USER_MODE_NORMAL)
     {
         if (code == LV_EVENT_PRESSED)
         {
@@ -245,55 +245,16 @@ error_return:
     return;
 }
 
-static void mode_changed(v_mode_t _mode)
+static void user_mode_changed(v_user_mode_t mode)
 {
-    mode = _mode;
+    d("");
+    g_user_mode = mode;
 }
 
 static v_draw_ops_t *get_ops(v_format_t format)
 {
     current_ops = draw_ops[format]();
     return current_ops;
-}
-
-static uint8_t *autoscale(uint8_t *orig, int *_w, int *_h, float *_scale)
-{
-    uint8_t *data = NULL;
-    int w = *_w;
-    int h = *_h;
-    float scale_x = (float)lv_obj_get_width(lv_screen_active()) / w;
-    float scale_y = (float)lv_obj_get_height(lv_screen_active()) / h;
-
-    float scale = min(scale_x, scale_y);
-    *_scale = scale;
-
-    int scaled_w = (int)((float)w * scale);
-    int scaled_h = (int)((float)h * scale);
-    d("scale %.02f,%.02f -> %.02f (%d, %d) => (%d, %d)", scale_x, scale_y, scale, w, h, scaled_w, scaled_h);
-
-    static cairo_surface_t *scaled_surface = NULL;
-
-    cairo_surface_t *orig_surface = cairo_image_surface_create_for_data(orig, CAIRO_FORMAT_ARGB32, w, h, w * 4);
-    ERR_RET(!orig_surface, "cairo_image_surface_create_for_data");
-    if (scaled_surface)
-    {
-        cairo_surface_destroy(scaled_surface);
-    }
-    scaled_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, scaled_w, scaled_h);
-
-    cairo_t *cr = cairo_create(scaled_surface);
-    cairo_scale(cr, (double)scale, (double)scale);
-    cairo_set_source_surface(cr, orig_surface, 0, 0);
-    cairo_paint(cr);
-
-    cairo_destroy(cr);
-    cairo_surface_destroy(orig_surface);
-
-    *_w = scaled_w;
-    *_h = scaled_h;
-    data = cairo_image_surface_get_data(scaled_surface);
-error_return:
-    return data;
 }
 
 static v_status_t show_page(v_format_t format, const char *path, uint16_t page)
@@ -322,8 +283,9 @@ static v_status_t show_page(v_format_t format, const char *path, uint16_t page)
     status = ops->pixel(orig_data, 0, w * 4, (v_scale_t){1, 1});
     ERR_RET(status != ST_SUCCESS, "### ERROR get pixel");
 
-    float scale;
-    uint8_t *data = autoscale(orig_data, &w, &h, &scale);
+    uint8_t *data = orig_data;
+    //    float scale;
+    //    uint8_t *data = autoscale(orig_data, &w, &h, &scale);
 
     static v_image_t image;
     image.buf = data;
@@ -331,7 +293,7 @@ static v_status_t show_page(v_format_t format, const char *path, uint16_t page)
     image.height = h;
     image.width = w;
     image.size = w * h * 4;
-    view_ops->show_image(&image, scale);
+    view_ops->show_image(&image);
 
     status = ST_SUCCESS;
     ERR_RETn(!ops->annots);
@@ -340,13 +302,13 @@ static v_status_t show_page(v_format_t format, const char *path, uint16_t page)
 
     for (int i = 0; i < annots->num; i++)
     {
-        v_annot_kind_t k = annots->annot[i].kind;
-        d("type: %d ", k);
-        if (k == V_ANNOT_FREETEXT)
-        {
-            v_annot_t *a = &annots->annot[i];
-            d("pos: %p %.0f, %.0f", &a->data.freetext.position, a->data.freetext.position.left, a->data.freetext.position.top);
-        }
+        //        v_annot_kind_t k = annots->annot[i].kind;
+        // d("type: %d ", k);
+        //         if (k == V_ANNOT_FREETEXT)
+        //         {
+        //             v_annot_t *a = &annots->annot[i];
+        //             d("pos: %p %.0f, %.0f", &a->data.freetext.position, a->data.freetext.position.left, a->data.freetext.position.top);
+        //         }
         view_ops->add_annot(&annots->annot[i]);
     }
 

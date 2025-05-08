@@ -275,27 +275,21 @@ static v_annots_t *v_pdf_get_annots(void)
     v_annots_t *ret = NULL;
     v_annots_t *annots;
 
-    d("");
     n = get_annot_num();
     ERR_RETn(n <= 0);
 
-    d("");
     annots = (v_annots_t *)malloc(sizeof(v_annots_t) + sizeof(v_annot_t) * n);
     ERR_RET(!annots, "malloc");
 
-    d("");
     annots->num = n;
 
-    d("");
     annots->annot[0].pdf_annot_obj = pdf_first_annot(pdf->ctx, (pdf_page *)pdf->page);
 
-    d("");
     for (i = 1; i < n; i++)
     {
         annots->annot[i].pdf_annot_obj = pdf_next_annot(pdf->ctx, annots->annot[i - 1].pdf_annot_obj);
     }
 
-    d("");
     for (i = 0; i < n; i++)
     {
         v_annot_t *a = &annots->annot[i];
@@ -330,6 +324,7 @@ static v_annots_t *v_pdf_get_annots(void)
             pdf_obj *inklist = pdf_dict_get(pdf->ctx, obj, PDF_NAME(InkList));
             a->data.inklist.num = pdf_array_len(pdf->ctx, inklist);
             a->data.inklist.strokes = malloc(sizeof(v_stroke_t) * a->data.inklist.num);
+            a->data.inklist.coord_type = V_ANNOT_COORD_TYPE_FILE;
             for (int i = 0; i < pdf_array_len(pdf->ctx, inklist); i++)
             {
                 v_stroke_t *s = &a->data.inklist.strokes[i];

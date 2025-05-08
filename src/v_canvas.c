@@ -2,6 +2,7 @@
 #include <sys/queue.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <cairo/cairo.h>
 #include "v_canvas.h"
 #include "v_pen.h"
 
@@ -12,7 +13,7 @@ static void v_remove_annot(v_annot_t *annot);
 static void v_show_frame(v_annot_t *annot);
 static void v_set_show_mode(v_show_mode_t mode);
 static v_status_t v_init_canvas(lv_obj_t *parent);
-static v_status_t v_show_image(v_image_t *im, float);
+static v_status_t v_show_image(v_image_t *im);
 static void v_set_touch_callback(lv_event_cb_t cb);
 static void v_show_annot(void);
 static void v_hide_annot(void);
@@ -81,8 +82,8 @@ static void v_add_freetext(v_annot_t *annot)
     v_freetext_t *t = &annot->data.freetext;
 
     int16_t w, h;
-    w = lv_obj_get_width(canvas);
-    h = lv_obj_get_width(canvas);
+    w = lv_obj_get_width(lv_screen_active());
+    h = lv_obj_get_width(lv_screen_active());
 
     annot->pdf_annot_obj = (void *)lv_canvas_create(image);
     lv_draw_buf_t *d = malloc(sizeof(lv_draw_buf_t) + w * h * 4);
@@ -120,11 +121,11 @@ static void v_add_freetext(v_annot_t *annot)
 static void v_add_inklist(v_annot_t *annot)
 {
     v_inklist_t *il = &annot->data.inklist;
-
+    d("");
     lv_image_dsc_t *imdsc = (lv_image_dsc_t *)lv_image_get_src(image);
     int16_t w, h;
-    w = lv_obj_get_width(canvas);
-    h = lv_obj_get_height(canvas);
+    w = lv_obj_get_width(lv_screen_active());
+    h = lv_obj_get_height(lv_screen_active());
     int32_t ox = (w - imdsc->header.w) / 2;
     int32_t oy = 0;
 
@@ -140,6 +141,7 @@ static void v_add_inklist(v_annot_t *annot)
     lv_obj_set_size(a, w, h);
 
     lv_canvas_init_layer(a, &l);
+    d("argb:%02x%02x%02x%02x", il->pen.color.c.alpha, il->pen.color.c.red, il->pen.color.c.green, il->pen.color.c.blue);
     for (int i = 0; i < il->num; i++)
     {
         v_stroke_t *st = &il->strokes[i];
@@ -147,10 +149,21 @@ static void v_add_inklist(v_annot_t *annot)
         lv_draw_line_dsc_init(dsc);
         for (int j = 1; j < st->num; j++)
         {
-            dsc->p1.x = st->points[j - 1].x * g_scale + ox;
-            dsc->p1.y = st->points[j - 1].y * g_scale + oy;
-            dsc->p2.x = st->points[j].x * g_scale + ox;
-            dsc->p2.y = st->points[j].y * g_scale + oy;
+            if (il->coord_type == V_ANNOT_COORD_TYPE_SCREEEN)
+            {
+                dsc->p1.x = st->points[j - 1].x;
+                dsc->p1.y = st->points[j - 1].y;
+                dsc->p2.x = st->points[j].x;
+                dsc->p2.y = st->points[j].y;
+            }
+            else
+            {
+                dsc->p1.x = st->points[j - 1].x * g_scale + ox;
+                dsc->p1.y = st->points[j - 1].y * g_scale + oy;
+                dsc->p2.x = st->points[j].x * g_scale + ox;
+                dsc->p2.y = st->points[j].y * g_scale + oy;
+            }
+
             dsc->color.red = il->pen.color.c.red;
             dsc->color.green = il->pen.color.c.green;
             dsc->color.blue = il->pen.color.c.blue;
@@ -164,6 +177,7 @@ static void v_add_inklist(v_annot_t *annot)
 
 static void v_add_annot(v_annot_t *annot)
 {
+    d("annot:%p", annot);
     ERR_RETn(!annot);
 
     void (*func[])(v_annot_t *) = {
@@ -294,7 +308,47 @@ static void reset_annotation(void)
     lv_canvas_fill_bg(canvas, lv_color_hex3(0xccc), LV_OPA_TRANSP);
 }
 
-static v_status_t v_show_image(v_image_t *im, float current_scale)
+static uint8_t *autoscale(uint8_t *orig, int *_w, int *_h, float *_scale)
+{
+    uint8_t *data = NULL;
+    int w = *_w;
+    int h = *_h;
+    float scale_x = (float)lv_obj_get_width(lv_screen_active()) / w;
+    float scale_y = (float)lv_obj_get_height(lv_screen_active()) / h;
+
+    float scale = min(scale_x, scale_y);
+    *_scale = scale;
+
+    int scaled_w = (int)((float)w * scale);
+    int scaled_h = (int)((float)h * scale);
+    d("scale %.02f,%.02f -> %.02f (%d, %d) => (%d, %d)", scale_x, scale_y, scale, w, h, scaled_w, scaled_h);
+
+    static cairo_surface_t *scaled_surface = NULL;
+
+    cairo_surface_t *orig_surface = cairo_image_surface_create_for_data(orig, CAIRO_FORMAT_ARGB32, w, h, w * 4);
+    ERR_RET(!orig_surface, "cairo_image_surface_create_for_data");
+    //    if (scaled_surface)
+    //    {
+    //        cairo_surface_destroy(scaled_surface);
+    //    }
+    scaled_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, scaled_w, scaled_h);
+
+    cairo_t *cr = cairo_create(scaled_surface);
+    cairo_scale(cr, (double)scale, (double)scale);
+    cairo_set_source_surface(cr, orig_surface, 0, 0);
+    cairo_paint(cr);
+
+    cairo_destroy(cr);
+    cairo_surface_destroy(orig_surface);
+
+    *_w = scaled_w;
+    *_h = scaled_h;
+    data = cairo_image_surface_get_data(scaled_surface);
+error_return:
+    return data;
+}
+
+static v_status_t v_show_image(v_image_t *im)
 {
     //    int w, h;
     //    float scale, scale_x, scale_y;
@@ -303,18 +357,20 @@ static v_status_t v_show_image(v_image_t *im, float current_scale)
         lv_free((uint8_t *)dsc->data);
     }
     reset_annotation();
-    d("scale:%.02f", current_scale);
 
-    g_scale = current_scale;
-    uint8_t *data = lv_malloc(im->size);
-    lv_memcpy(data, im->buf, im->size);
+    int w = im->width;
+    int h = im->height;
+    float scale;
+    uint8_t *data = autoscale(im->buf, &w, &h, &scale);
+
+    g_scale = scale;
 
     dsc->data = data;
-    dsc->header.cf = im->format;
-    dsc->header.w = im->width;
-    dsc->header.h = im->height;
+    dsc->header.cf = LV_COLOR_FORMAT_ARGB8888;
+    dsc->header.w = w;
+    dsc->header.h = h;
     dsc->header.magic = LV_IMAGE_HEADER_MAGIC;
-    dsc->data_size = im->size;
+    dsc->data_size = w * h * 4;
     lv_img_set_src(image, dsc);
     return ST_SUCCESS;
 }

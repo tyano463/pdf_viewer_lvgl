@@ -192,6 +192,17 @@ error_return:
     return status;
 }
 
+static void set_default(void)
+{
+    d("");
+    g_settings.last_pen.color.c.alpha = 255;
+    g_settings.last_pen.color.c.red = 0;
+    g_settings.last_pen.color.c.green = 0;
+    g_settings.last_pen.color.c.blue = 0;
+    g_settings.last_pen.size = 3;
+    strcpy(g_settings.last_opened, PDF_FILE);
+}
+
 v_status_t v_load_settings(void)
 {
     v_status_t status;
@@ -217,9 +228,14 @@ v_status_t v_load_settings(void)
 
     ERR_RET(parse_settings_json(buf) != ST_SUCCESS, "parse json");
 
+    status = ST_SUCCESS;
 error_return:
     if (fp)
         fclose(fp);
+    if (status != ST_SUCCESS)
+    {
+        set_default();
+    }
     return status;
 }
 

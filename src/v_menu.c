@@ -1,4 +1,5 @@
 #include <cjson/cJSON.h>
+#include <math.h>
 #include "v_menu.h"
 #include "v_icon.h"
 #include "v_file.h"
@@ -19,6 +20,7 @@ static v_menu_t *_menu;
 static v_menu_cb_ops_t *_ops;
 static v_menu_ops_t g_menu_ops;
 static v_show_mode_t g_show_mode;
+static lv_obj_t *show_mode_button;
 
 static void open_file(const char *path)
 {
@@ -115,21 +117,87 @@ error_return:
     return;
 }
 
+static uint8_t show_mode_buf[32 * 32 * 4];
+static void update_show_mode_button(void)
+{
+#define SHOW_MODE_ICON_SIZE 32
+    static lv_img_dsc_t dsc;
+    lv_color32_t basecolor;
+    dsc.data = show_mode_buf;
+    dsc.data_size = 32 * 32 * 4;
+    dsc.reserved = 0;
+    dsc.reserved_2 = 0;
+    dsc.header.cf = LV_COLOR_FORMAT_ARGB8888;
+    dsc.header.flags = 0;
+    dsc.header.h = 32;
+    dsc.header.w = 32;
+    dsc.header.stride = 32 * 4;
+    dsc.header.magic = LV_IMAGE_HEADER_MAGIC;
+    if (g_show_mode == V_SHOW_MODE_ANNOT_WITH_MENU)
+    {
+        basecolor.red = 165;
+        basecolor.green = 245;
+        basecolor.blue = 159;
+        basecolor.alpha = 255;
+    }
+    else if (g_show_mode == V_SHOW_MODE_ANNOT_NO_MENU)
+    {
+        basecolor.red = 240;
+        basecolor.green = 235;
+        basecolor.blue = 197;
+        basecolor.alpha = 255;
+    }
+    else if (g_show_mode == V_SHOW_MODE_SCORE_ONLY)
+    {
+        basecolor.red = 219;
+        basecolor.green = 219;
+        basecolor.blue = 213;
+        basecolor.alpha = 255;
+    }
+    float cx = SHOW_MODE_ICON_SIZE / 2.0f;
+    float cy = SHOW_MODE_ICON_SIZE / 2.0f;
+    float radius = SHOW_MODE_ICON_SIZE / 2.0f;
+    for (int i = 0; i < SHOW_MODE_ICON_SIZE; i++)
+    {
+        for (int j = 0; j < SHOW_MODE_ICON_SIZE; j++)
+        {
+
+            float dx = j - cx;
+            float dy = i - cy;
+            float dist = sqrtf(dx * dx + dy * dy);
+            // TODO
+            uint8_t alpha = 0;
+            if (dist <= radius)
+            {
+                alpha = 128 + (radius - dist) / radius * (255 - 128);
+            }
+
+            show_mode_buf[(i * SHOW_MODE_ICON_SIZE + j) * 4 + 3] = alpha;
+            show_mode_buf[(i * SHOW_MODE_ICON_SIZE + j) * 4 + 2] = basecolor.red;
+            show_mode_buf[(i * SHOW_MODE_ICON_SIZE + j) * 4 + 1] = basecolor.green;
+            show_mode_buf[(i * SHOW_MODE_ICON_SIZE + j) * 4 + 0] = basecolor.blue;
+        }
+    }
+    lv_image_set_src(show_mode_button, &dsc);
+}
 static void mode_changed(lv_event_t *e)
 {
     g_show_mode++;
     g_show_mode %= V_SHOW_MODE_MAX;
+    d("%s(%d)", v_show_mode_t_to_string(g_show_mode), g_show_mode);
+    update_show_mode_button();
     _ops->show_mode(g_show_mode);
 }
 
 static void switch_button(lv_obj_t *parent)
 {
-    lv_img_dsc_t *dsc = get_icon_dsc("circle");
-    lv_obj_t *icon = lv_image_create(parent);
-    lv_image_set_src(icon, dsc);
-    lv_obj_align(icon, LV_ALIGN_BOTTOM_LEFT, 10, -10);
-    lv_obj_add_flag(icon, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_event_cb(icon, mode_changed, LV_EVENT_SINGLE_CLICKED, NULL);
+    //    lv_img_dsc_t *dsc = get_icon_dsc("circle");
+    show_mode_button = lv_image_create(parent);
+    //    lv_image_set_src(show_mode_button, dsc);
+    update_show_mode_button();
+    lv_obj_align(show_mode_button, LV_ALIGN_BOTTOM_LEFT, 10, -10);
+    lv_obj_add_flag(show_mode_button, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(show_mode_button, mode_changed, LV_EVENT_SINGLE_CLICKED, NULL);
 }
 
 static v_status_t v_menu_init(lv_obj_t *parent, v_menu_cb_ops_t *ops)

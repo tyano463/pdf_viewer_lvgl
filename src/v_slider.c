@@ -1,28 +1,26 @@
 #include "v_slider.h"
 #include "v_common.h"
 
-static void set_slider_visibility(bool vis);
-
-static lv_obj_t *slider;
-static v_slider_callback_t g_callback;
+static void set_slider_visibility(lv_obj_t *slider, bool vis);
 
 static void slider_event_cb(lv_event_t *e)
 {
+    lv_obj_t *slider = lv_event_get_target_obj(e);
+    v_slider_callback_t callback = (v_slider_callback_t)lv_event_get_user_data(e);
+    ERR_RETn(!slider);
+    ERR_RETn(!callback);
     int32_t value = lv_slider_get_value(slider);
-    if (g_callback)
+    if (callback)
     {
-        g_callback(value);
+        callback(value);
     }
+error_return:
+    return;
 }
 
-void v_show_slider(v_slider_callback_t callback, lv_obj_t *parent, lv_area_t *rect, uint16_t vmax)
+lv_obj_t *v_create_slider(v_slider_callback_t callback, lv_obj_t *parent, lv_area_t *rect, v_slider_param_t *param)
 {
-    if (slider)
-    {
-        set_slider_visibility(true);
-        return;
-    }
-    g_callback = callback;
+    lv_obj_t *slider;
     /*Create a transition*/
     static const lv_style_prop_t props[] = {LV_STYLE_BG_COLOR, 0};
     static lv_style_transition_dsc_t transition_dsc;
@@ -61,18 +59,29 @@ void v_show_slider(v_slider_callback_t callback, lv_obj_t *parent, lv_area_t *re
     /*Create a slider and add the style*/
     slider = lv_slider_create(parent);
     lv_obj_remove_style_all(slider); /*Remove the styles coming from the theme*/
+    lv_slider_set_range(slider, param->minimum_value, param->maximum_value);
+    lv_slider_set_value(slider, param->initial_value, LV_ANIM_OFF);
 
     lv_obj_add_style(slider, &style_main, LV_PART_MAIN);
     lv_obj_add_style(slider, &style_indicator, LV_PART_INDICATOR);
     lv_obj_add_style(slider, &style_pressed_color, LV_PART_INDICATOR | LV_STATE_PRESSED);
     lv_obj_add_style(slider, &style_knob, LV_PART_KNOB);
     lv_obj_add_style(slider, &style_pressed_color, LV_PART_KNOB | LV_STATE_PRESSED);
-    lv_obj_set_size(slider, 100, 6);
-    lv_obj_set_pos(slider, 600, 10);
-    lv_obj_add_event_cb(slider, slider_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
+    lv_obj_set_size(slider, rect->x2 - rect->x1, rect->y2 - rect->y1);
+    lv_obj_set_pos(slider, rect->x1, rect->y1);
+    lv_obj_add_event_cb(slider, slider_event_cb, LV_EVENT_VALUE_CHANGED, callback);
+    return slider;
 }
 
-static void set_slider_visibility(bool vis)
+void v_show_slider(lv_obj_t *slider)
+{
+    if (slider)
+    {
+        set_slider_visibility(slider, true);
+    }
+}
+
+static void set_slider_visibility(lv_obj_t *slider, bool vis)
 {
     ERR_RETn(!slider);
     void (*func)(lv_obj_t *, lv_obj_flag_t);
@@ -81,7 +90,8 @@ static void set_slider_visibility(bool vis)
 error_return:
     return;
 }
-void v_hide_slider(void)
+void v_hide_slider(lv_obj_t *slider)
 {
-    set_slider_visibility(false);
+    if (slider)
+        set_slider_visibility(slider, false);
 }

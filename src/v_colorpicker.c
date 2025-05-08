@@ -15,6 +15,7 @@
 
 static void update_picker_pos(uint16_t left, uint16_t top);
 static void update_bar_pos(uint16_t left);
+static lv_color_t pickerpoint2color(void);
 
 static color_callback_t g_callback;
 static lv_obj_t *picker, *bar;
@@ -128,6 +129,10 @@ static void barchanged(void *arg)
     change_2d_color(arg);
     update_picker_pos(last_picker_pos.x, last_picker_pos.y);
     lv_obj_invalidate(picker);
+    lv_color_t color = pickerpoint2color();
+    uint32_t argb = (color.red << 16) | (color.green << 8) | (color.blue << 0);
+    if (g_callback)
+        g_callback(argb);
 }
 
 static lv_color_t barpoint2color(lv_point_t *p)
@@ -217,8 +222,9 @@ error_return:
     return;
 }
 
-static lv_color_t pickerpoint2color(lv_point_t *p)
+static lv_color_t pickerpoint2color(void)
 {
+    lv_point_t *p = &last_picker_pos;
 
     float orig_h, orig_s, orig_v;
 
@@ -255,7 +261,7 @@ static void picker2d_callback(lv_event_t *e)
     {
     case LV_EVENT_PRESSING:
     case LV_EVENT_RELEASED:
-        lv_color_t color = pickerpoint2color(&rel);
+        lv_color_t color = pickerpoint2color();
         uint32_t argb = (color.red << 16) | (color.green << 8) | (color.blue << 0);
 
         // d("%d,%d -> %02x%02x%02x argb:%06x", rel.x, rel.y, color.red, color.green, color.blue, argb);
@@ -283,15 +289,15 @@ static void update_picker_pos(uint16_t left, uint16_t top)
     last_picker_pos.y = top;
 }
 
-static void create_picker(lv_obj_t *parent, uint16_t left, uint16_t top)
+static void create_picker(lv_obj_t *parent, uint16_t left, uint16_t top, lv_color32_t bgra)
 {
     picker_buf = malloc(PICKER_HEIGHT + PICKER_WIDTH * PICKER_HEIGHT * 3);
     picker = lv_canvas_create(parent);
     d("picker:%p", picker);
     lv_color_t default_color = {
-        .red = 255,
-        .green = 0,
-        .blue = 0};
+        .red = bgra.red,
+        .green = bgra.green,
+        .blue = bgra.blue};
     float orig_h, orig_s, orig_v;
 
     rgb_to_hsv(&orig_h, &orig_s, &orig_v, &default_color);
@@ -323,15 +329,20 @@ static void create_picker(lv_obj_t *parent, uint16_t left, uint16_t top)
     lv_obj_set_style_border_width(picker_point, 8, 0);
     lv_obj_set_style_border_opa(picker_point, LV_OPA_COVER, 0);
     lv_obj_set_style_shadow_width(picker_point, 0, 0);
-    lv_obj_set_pos(picker_point, PICKER_WIDTH - POINT_RADIUS, 0 - POINT_RADIUS);
-    last_picker_pos.x = PICKER_WIDTH;
-    last_picker_pos.y = 0;
+
+    int point_x = orig_s * (PICKER_WIDTH - 1);
+    int point_y = (1.0f - orig_v) * (PICKER_HEIGHT - 1);
+
+    lv_obj_set_pos(picker_point, point_x - POINT_RADIUS, point_y - POINT_RADIUS);
+
+    last_picker_pos.x = point_x;
+    last_picker_pos.y = point_y;
 
     lv_obj_add_flag(picker, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(picker, picker2d_callback, LV_EVENT_ALL, NULL);
 }
 
-static void create_bar(lv_obj_t *parent, uint16_t left, uint16_t top)
+static void create_bar(lv_obj_t *parent, uint16_t left, uint16_t top, lv_color32_t bgra)
 {
     bar = lv_canvas_create(parent);
     bar_buf = malloc(BAR_WIDTH * BAR_HEIGHT * 3);
@@ -395,12 +406,18 @@ static void create_bar(lv_obj_t *parent, uint16_t left, uint16_t top)
     lv_obj_set_style_border_width(bar_point, 8, 0);
     lv_obj_set_style_border_opa(bar_point, LV_OPA_COVER, 0);
     lv_obj_set_style_shadow_width(bar_point, 0, 0);
-    lv_obj_set_pos(bar_point, 0 - POINT_RADIUS, BAR_HEIGHT / 2 - POINT_RADIUS);
+
+    float hue, s, v;
+    lv_color_t color = (lv_color_t){bgra.blue, bgra.green, bgra.red};
+    rgb_to_hsv(&hue, &s, &v, &color);
+    int16_t x_pos = (int16_t)(hue * (BAR_WIDTH - 1)) - POINT_RADIUS;
+    int16_t y_pos = (BAR_HEIGHT / 2) - POINT_RADIUS;
+    lv_obj_set_pos(bar_point, x_pos, y_pos);
 
     lv_obj_add_flag(bar, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(bar, pickerbar_callback, LV_EVENT_ALL, NULL);
 }
-void v_show_color_picker(color_callback_t _callback, lv_obj_t *parent, int16_t left, int16_t top)
+void v_show_color_picker(color_callback_t _callback, lv_obj_t *parent, int16_t left, int16_t top, lv_color32_t bgra)
 {
     if (picker)
     {
@@ -408,8 +425,8 @@ void v_show_color_picker(color_callback_t _callback, lv_obj_t *parent, int16_t l
         return;
     }
 
-    create_picker(parent, left, top);
-    create_bar(parent, left, top);
+    create_picker(parent, left, top, bgra);
+    create_bar(parent, left, top, bgra);
 
     g_callback = _callback;
 }

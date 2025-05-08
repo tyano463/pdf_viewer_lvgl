@@ -70,12 +70,13 @@
     case e:                 \
         return #e;
 
-#define MODE_ITEMS(X) \
-    X(MODE_NORMAL)    \
-    X(MODE_PEN)       \
-    X(MODE_SELECT)
+#define MODE_ITEMS(X)     \
+    X(V_USER_MODE_NORMAL) \
+    X(V_USER_MODE_PEN)    \
+    X(V_USER_MODE_SELECT) \
+    X(V_USER_MODE_MAX)
 
-DEFINE_ENUM_WITH_STRINGS(v_mode_t, MODE_ITEMS);
+DEFINE_ENUM_WITH_STRINGS(v_user_mode_t, MODE_ITEMS);
 
 #define SHOW_MODE_ITEMS(X)         \
     X(V_SHOW_MODE_ANNOT_WITH_MENU) \
