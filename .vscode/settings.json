@@ -48,7 +48,8 @@
         "type_traits": "c",
         "utility": "c",
         "queue.h": "c",
-        "v_color.h": "c"
+        "v_color.h": "c",
+        "v_assets_list.h": "c"
     },
     "C_Cpp.errorSquiggles": "disabled",
     "[jsonc]": {

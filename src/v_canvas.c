@@ -3,8 +3,10 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <cairo/cairo.h>
+#include "v_core.h"
 #include "v_canvas.h"
 #include "v_pen.h"
+#include "v_icon.h"
 
 static void *draw_main(void *);
 static void init_ops(void);
@@ -18,6 +20,13 @@ static void v_set_touch_callback(lv_event_cb_t cb);
 static void v_show_annot(void);
 static void v_hide_annot(void);
 static void v_queue(v_draw_event_t *ev);
+static void v_select(lv_point_t *pos);
+static void v_move(lv_point_t *from, lv_point_t *to);
+static void on_remove_pressed(lv_event_t *);
+static void on_resize_dragged(lv_event_t *);
+static void show_annot_control(v_annot_t *a);
+static void hide_annot_control(void);
+
 extern lv_font_t source_hans_16;
 extern lv_font_t source_hans_20;
 extern lv_font_t source_hans_24;
@@ -32,6 +41,9 @@ static v_show_mode_t g_mode;
 
 static lv_img_dsc_t *dsc;
 static lv_obj_t *image;
+
+static v_annot_control_t _annot_control;
+static v_annot_control_t *annot_control;
 
 static v_viewer_ops_t ops;
 static float g_scale;
@@ -58,6 +70,8 @@ static void init_ops(void)
         ops.show_annot = v_show_annot;
         ops.hide_annot = v_hide_annot;
         ops.queue = v_queue;
+        ops.select = v_select;
+        ops.move = v_move;
     }
 }
 
@@ -112,6 +126,10 @@ static void v_add_freetext(v_annot_t *annot)
     coord.y1 = (int32_t)t->position.top * g_scale + oy;
     coord.x2 = (int32_t)t->position.right * g_scale + ox;
     coord.y2 = (int32_t)t->position.bottom * g_scale + oy;
+    annot->rect.left = coord.x1;
+    annot->rect.top = coord.y1;
+    annot->rect.right = coord.x2;
+    annot->rect.bottom = coord.y2;
 
     lv_draw_label(&l, dsc, &coord);
     d("%s %d,%d,%d,%d", dsc->text, coord.x1, coord.y1, coord.x2, coord.y2);
@@ -142,6 +160,10 @@ static void v_add_inklist(v_annot_t *annot)
 
     lv_canvas_init_layer(a, &l);
     d("argb:%02x%02x%02x%02x", il->pen.color.c.alpha, il->pen.color.c.red, il->pen.color.c.green, il->pen.color.c.blue);
+    annot->rect.left = INT16_MAX;
+    annot->rect.top = INT16_MAX;
+    annot->rect.right = INT16_MIN;
+    annot->rect.bottom = INT16_MIN;
     for (int i = 0; i < il->num; i++)
     {
         v_stroke_t *st = &il->strokes[i];
@@ -163,6 +185,35 @@ static void v_add_inklist(v_annot_t *annot)
                 dsc->p2.x = st->points[j].x * g_scale + ox;
                 dsc->p2.y = st->points[j].y * g_scale + oy;
             }
+
+            lv_point_precise_t p1 = dsc->p1;
+            lv_point_precise_t p2 = dsc->p2;
+
+            dsc->p1.x = annot->matrix.elm[0][0] * p1.x +
+                        annot->matrix.elm[0][1] * p1.y +
+                        annot->matrix.elm[0][2];
+            dsc->p1.y = annot->matrix.elm[1][0] * p1.x +
+                        annot->matrix.elm[1][1] * p1.y +
+                        annot->matrix.elm[1][2];
+
+            dsc->p2.x = annot->matrix.elm[0][0] * p2.x +
+                        annot->matrix.elm[0][1] * p2.y +
+                        annot->matrix.elm[0][2];
+            dsc->p2.y = annot->matrix.elm[1][0] * p2.x +
+                        annot->matrix.elm[1][1] * p2.y +
+                        annot->matrix.elm[1][2];
+
+            if (j == 1)
+            {
+                annot->rect.left = min(annot->rect.left, dsc->p1.x);
+                annot->rect.top = min(annot->rect.top, dsc->p1.y);
+                annot->rect.right = max(annot->rect.right, dsc->p1.x);
+                annot->rect.bottom = max(annot->rect.bottom, dsc->p1.y);
+            }
+            annot->rect.left = min(annot->rect.left, dsc->p2.x);
+            annot->rect.top = min(annot->rect.top, dsc->p2.y);
+            annot->rect.right = max(annot->rect.right, dsc->p2.x);
+            annot->rect.bottom = max(annot->rect.bottom, dsc->p2.y);
 
             dsc->color.red = il->pen.color.c.red;
             dsc->color.green = il->pen.color.c.green;
@@ -204,8 +255,28 @@ static void v_show_annot(void)
 {
     v_set_annot_visibility(true);
 }
+
+static void release_annot(v_annot_t *annot)
+{
+    if (annot->kind == V_ANNOT_INKLIST)
+    {
+        uint16_t n = annot->data.inklist.num;
+        for (int i = 0; i < n; i++)
+        {
+            free(annot->data.inklist.strokes[i].points);
+        }
+        free(annot->data.inklist.strokes);
+    }
+    else if (annot->kind == V_ANNOT_FREETEXT)
+    {
+    }
+    //    free(annot);
+}
+
 static void v_remove_annot(v_annot_t *annot)
 {
+    TAILQ_REMOVE(an_head, annot, entry);
+    lv_obj_delete(annot->pdf_annot_obj);
 }
 
 static void v_show_frame(v_annot_t *annot)
@@ -274,9 +345,30 @@ static void font_load(void)
 {
 }
 
+static void annot_control_init(void)
+{
+    annot_control = &_annot_control;
+    annot_control->annot = NULL;
+    annot_control->remove_button = lv_image_create(canvas);
+    annot_control->resize_button = lv_image_create(canvas);
+    lv_image_dsc_t *eraser_img = get_icon_dsc("eraser");
+    lv_image_dsc_t *resize_img = get_icon_dsc("resize");
+
+    lv_image_set_src(annot_control->remove_button, eraser_img);
+    lv_image_set_src(annot_control->resize_button, resize_img);
+    lv_obj_add_flag(annot_control->remove_button, LV_OBJ_FLAG_HIDDEN | LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(annot_control->resize_button, LV_OBJ_FLAG_HIDDEN | LV_OBJ_FLAG_CLICKABLE);
+
+    lv_obj_add_event(annot_control->remove_button, on_remove_pressed, LV_EVENT_SINGLE_CLICKED, NULL);
+    lv_obj_add_event(annot_control->resize_button, on_resize_dragged, LV_EVENT_ALL, NULL);
+}
 static v_status_t v_init_canvas(lv_obj_t *parent)
 {
-    v_status_t status = ST_CREATE_CANVAS_FAILED;
+    v_status_t status = ST_SUCCESS;
+
+    ERR_RETn(image);
+
+    status = ST_CREATE_CANVAS_FAILED;
 
     dsc = lv_malloc(sizeof(lv_img_dsc_t));
     ERR_RET(!dsc, "malloc");
@@ -297,6 +389,8 @@ static v_status_t v_init_canvas(lv_obj_t *parent)
 
     font_load();
     draw_thread_init();
+
+    annot_control_init();
 
     status = ST_SUCCESS;
 error_return:
@@ -408,4 +502,176 @@ static void v_set_touch_callback(lv_event_cb_t cb)
 {
     lv_obj_add_flag(canvas, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(canvas, cb, LV_EVENT_ALL, NULL);
+}
+
+static void show_annot_control(v_annot_t *a)
+{
+    lv_obj_t *r, *d;
+    r = annot_control->resize_button;
+    d = annot_control->remove_button;
+
+    // 元の座標
+    float x = a->rect.right;
+    float y = a->rect.bottom;
+
+    // 行列変換
+    float x_trans = a->matrix.elm[0][0] * x + a->matrix.elm[0][1] * y + a->matrix.elm[0][2];
+    float y_trans = a->matrix.elm[1][0] * x + a->matrix.elm[1][1] * y + a->matrix.elm[1][2];
+
+    lv_obj_set_pos(r, x_trans, y_trans);
+    lv_obj_remove_flag(r, LV_OBJ_FLAG_HIDDEN);
+
+    // 2個目も同様に +40 の処理を行う（Y方向にシフト）
+    x = a->rect.right;
+    y = a->rect.bottom + 40;
+
+    x_trans = a->matrix.elm[0][0] * x + a->matrix.elm[0][1] * y + a->matrix.elm[0][2];
+    y_trans = a->matrix.elm[1][0] * x + a->matrix.elm[1][1] * y + a->matrix.elm[1][2];
+
+    lv_obj_set_pos(d, x_trans, y_trans);
+    lv_obj_remove_flag(d, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void v_select(lv_point_t *pos)
+{
+    v_annot_t *annot = NULL, *iter;
+    TAILQ_FOREACH(iter, an_head, entry)
+    {
+        if (in_rect(pos, &iter->rect))
+        {
+            // clang-format off
+            d("%d,%d in (%d,%d)-(%d,%d)"
+                , pos->x, pos->y
+                , iter->rect.left
+                , iter->rect.top
+                , iter->rect.right
+                , iter->rect.bottom);
+            // clang-format on
+            annot = iter;
+            break;
+        }
+    }
+    ERR_RETn(!annot);
+
+    annot_control->annot = annot;
+
+    show_annot_control(annot);
+
+error_return:
+    return;
+}
+static void set_move_matrix(v_matrix_t *m, lv_point_t *from, lv_point_t *to)
+{
+    float dx = (float)(to->x - from->x);
+    float dy = (float)(to->y - from->y);
+
+    m->elm[0][0] = 1.0f; // a
+    m->elm[0][1] = 0.0f; // c
+    m->elm[0][2] = dx;   // e
+
+    m->elm[1][0] = 0.0f; // b
+    m->elm[1][1] = 1.0f; // d
+    m->elm[1][2] = dy;   // f
+}
+
+static void v_move(lv_point_t *from, lv_point_t *to)
+{
+    v_annot_t *a = annot_control->annot;
+    v_remove_annot(a);
+    v_matrix_t before_matrix, after_matrix;
+
+    memcpy(&before_matrix, &a->matrix, sizeof(v_matrix_t));
+    set_move_matrix(&after_matrix, from, to);
+    matrix_multiply(&a->matrix, &before_matrix, &after_matrix);
+    v_add_annot(a);
+    hide_annot_control();
+    show_annot_control(a);
+}
+
+// static void call_remove_dialog(void)
+//{
+// }
+static void hide_annot_control(void)
+{
+    lv_obj_t *d = annot_control->remove_button;
+    lv_obj_t *r = annot_control->resize_button;
+    lv_obj_add_flag(d, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(r, LV_OBJ_FLAG_HIDDEN);
+}
+static void remove_callback(bool result)
+{
+    d("result: %d", result);
+    ERR_RETn(!result);
+
+    hide_annot_control();
+    v_annot_t *a = annot_control->annot;
+    annot_control->annot = NULL;
+
+    v_remove_annot(a);
+    release_annot(a);
+
+error_return:
+    return;
+}
+static void on_remove_pressed(lv_event_t *ev)
+{
+    d("");
+    // lv_async_call((lv_async_cb_t)call_remove_dialog, NULL);
+    show_modal_dialog(lv_screen_active(), "Delete this item ?", remove_callback);
+}
+
+static void set_scale_matrix(v_matrix_t *m, lv_point_precise_t *center, float scale)
+{
+    m->elm[0][0] = scale;
+    m->elm[0][1] = 0.0f;
+    m->elm[0][2] = center->x * (1.0f - scale);
+
+    m->elm[1][0] = 0.0f;
+    m->elm[1][1] = scale;
+    m->elm[1][2] = center->y * (1.0f - scale);
+}
+
+static void on_resize_dragged(lv_event_t *ev)
+{
+    lv_event_code_t code = lv_event_get_code(ev);
+    if (code > LV_EVENT_RELEASED)
+        return;
+
+    lv_indev_t *indev = lv_event_get_indev(ev);
+    lv_point_t point;
+    static lv_point_precise_t center;
+    static float d;
+    //    static float original_scale;
+    lv_indev_get_point(indev, &point);
+    d("%d: (%d,%d)", code, point.x, point.y);
+
+    if (code == LV_EVENT_PRESSED)
+    {
+        lv_obj_t *btn = lv_event_get_target_obj(ev);
+        lv_obj_set_style_image_opa(btn, LV_OPA_50, 0);
+        v_annot_t *a = annot_control->annot;
+        center = rect_center(&a->rect, &a->matrix);
+        d = distancef(&center, &point);
+        // original_scale = scale_factor(&a->matrix);
+    }
+    else if (code == LV_EVENT_PRESSING)
+    {
+    }
+    else if (code == LV_EVENT_RELEASED)
+    {
+        lv_obj_t *btn = lv_event_get_target_obj(ev);
+        lv_obj_set_style_image_opa(btn, LV_OPA_COVER, 0);
+        float after = distancef(&center, &point);
+        // d("os:%.02f od:%.02f ad:%.02f", original_scale, d, after);
+        float scale = after / d;
+        v_annot_t *a = annot_control->annot;
+        v_remove_annot(a);
+        v_matrix_t before_matrix, after_matrix;
+        memcpy(&before_matrix, &a->matrix, sizeof(v_matrix_t));
+        set_scale_matrix(&after_matrix, &center, scale);
+        matrix_multiply(&a->matrix, &before_matrix, &after_matrix);
+        v_add_annot(a);
+        hide_annot_control();
+        show_annot_control(a);
+    }
 }

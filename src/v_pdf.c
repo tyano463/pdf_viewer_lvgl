@@ -293,6 +293,8 @@ static v_annots_t *v_pdf_get_annots(void)
     for (i = 0; i < n; i++)
     {
         v_annot_t *a = &annots->annot[i];
+        a->matrix = (v_matrix_t){.elm = {{1.0f, 0.0f, 0.0f},
+                                         {0.0f, 1.0f, 0.0f}}};
         enum pdf_annot_type t = pdf_annot_type(pdf->ctx, a->pdf_annot_obj);
         switch (t)
         {

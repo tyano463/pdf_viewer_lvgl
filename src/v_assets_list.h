@@ -7,6 +7,9 @@
     ENTRY(hamburger) \
     ENTRY(pen)       \
     ENTRY(open_book) \
+    ENTRY(select)    \
+    ENTRY(eraser)    \
+    ENTRY(resize)    \
     ENTRY(circle)    \
     ENTRY(close_button)
 

@@ -44,11 +44,6 @@ enum
     V_ANNOT_MAX,
 };
 
-typedef struct
-{
-    float elm[2][3];
-} v_matrix_t;
-
 typedef struct str_v_freetext
 {
 
@@ -66,6 +61,7 @@ typedef struct str_v_annot
     void *pdf_annot_obj;
     v_matrix_t matrix;
     v_annot_kind_t kind;
+    v_rect_t rect;
     union
     {
         v_freetext_t freetext;
@@ -78,6 +74,13 @@ typedef struct str_v_annnots
     uint32_t num;
     v_annot_t annot[];
 } v_annots_t;
+
+typedef struct str_v_annot_control
+{
+    v_annot_t *annot;
+    lv_obj_t *remove_button;
+    lv_obj_t *resize_button;
+} v_annot_control_t;
 
 typedef struct str_v_draw_ops
 {
@@ -103,6 +106,8 @@ typedef struct str_v_viewer_ops
     void (*show_annot)(void);
     void (*hide_annot)(void);
     void (*queue)(v_draw_event_t *ev);
+    void (*select)(lv_point_t *);
+    void (*move)(lv_point_t *, lv_point_t *);
 } v_viewer_ops_t;
 
 v_viewer_ops_t *v_get_canvas_ops(void);

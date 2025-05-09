@@ -6,6 +6,8 @@
 #include "v_colorpicker.h"
 #include "v_slider.h"
 #include "v_settings.h"
+#include "v_core.h"
+#include "v_misc.h"
 
 #define COORD_CHUNK_NUM 100
 
@@ -19,6 +21,7 @@ static void hide_sample(void);
 
 static lv_obj_t *pen_button;
 static lv_obj_t *book_button;
+static lv_obj_t *select_button;
 static v_pen_ops_t ops;
 static v_pen_cb_ops_t *cbs;
 static v_stroke_t *active;
@@ -64,6 +67,7 @@ static void user_mode_change(lv_event_t *e)
     }
     else if (user_mode == V_USER_MODE_SELECT)
     {
+        hide_pen_icon();
     }
     if (cbs)
     {
@@ -103,6 +107,8 @@ static void v_pen_draw(int32_t x, int32_t y, uint8_t pressure, v_pen_draw_mode_t
             annot->data.inklist.coord_type = V_ANNOT_COORD_TYPE_SCREEEN;
             memcpy(&annot->data.inklist.pen, current_pen, sizeof(v_pen_t));
             annot->data.inklist.strokes = active;
+            annot->matrix = (v_matrix_t){.elm = {{1.0f, 0.0f, 0.0f},
+                                                 {0.0f, 1.0f, 0.0f}}};
             active = NULL;
             v_viewer_ops_t *ops = v_get_canvas_ops();
             ops->add_annot(annot);
@@ -112,11 +118,28 @@ static void v_pen_draw(int32_t x, int32_t y, uint8_t pressure, v_pen_draw_mode_t
 
 static void v_pen_select(float x, float y, v_pen_draw_mode_t mode)
 {
+    static lv_point_t touch_start;
     if (mode == V_PEN_DRAW_START)
     {
+        touch_start.x = x;
+        touch_start.y = y;
     }
     else if (mode == V_PEN_DRAW_END)
     {
+        lv_point_t pos = {
+            .x = x,
+            .y = y,
+        };
+        float d = distance(&touch_start, &pos);
+        v_viewer_ops_t *ops = v_get_canvas_ops();
+        if (is_click(d))
+        {
+            ops->select(&pos);
+        }
+        else
+        {
+            ops->move(&touch_start, &pos);
+        }
     }
 }
 
@@ -124,23 +147,31 @@ v_status_t v_pen_init(lv_obj_t *parent, v_pen_cb_ops_t *_cbs)
 {
     lv_img_dsc_t *pen_icon;
     lv_img_dsc_t *book_icon;
+    lv_img_dsc_t *select_icon;
     pen_button = lv_image_create(parent);
     book_button = lv_image_create(parent);
+    select_button = lv_image_create(parent);
 
     lv_obj_flag_t flag = LV_OBJ_FLAG_CLICKABLE;
     lv_obj_add_flag(pen_button, flag);
     lv_obj_add_flag(book_button, flag);
+    lv_obj_add_flag(select_button, flag);
 
     pen_icon = get_icon_dsc("pen");
     book_icon = get_icon_dsc("open_book");
+    select_icon = get_icon_dsc("select");
     lv_image_set_src(pen_button, pen_icon);
     lv_image_set_src(book_button, book_icon);
+    lv_image_set_src(select_button, select_icon);
     lv_obj_align(pen_button, LV_ALIGN_TOP_RIGHT, -5, 5);
     lv_obj_align(book_button, LV_ALIGN_TOP_RIGHT, -5, 5);
+    lv_obj_align(select_button, LV_ALIGN_TOP_RIGHT, -5, 5);
     lv_obj_add_event_cb(pen_button, user_mode_change, LV_EVENT_CLICKED, NULL);
     lv_obj_add_event_cb(book_button, user_mode_change, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(select_button, user_mode_change, LV_EVENT_CLICKED, NULL);
 
     lv_obj_add_flag(pen_button, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(select_button, LV_OBJ_FLAG_HIDDEN);
 
     cbs = _cbs;
     return ST_SUCCESS;
@@ -152,17 +183,26 @@ static void set_pen_icon_visivility(bool vis)
     {
         lv_obj_add_flag(book_button, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(pen_button, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(select_button, LV_OBJ_FLAG_HIDDEN);
     }
     else
     {
-        if (vis)
+        if (user_mode == V_USER_MODE_PEN)
         {
             lv_obj_add_flag(book_button, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(select_button, LV_OBJ_FLAG_HIDDEN);
             lv_obj_remove_flag(pen_button, LV_OBJ_FLAG_HIDDEN);
+        }
+        else if (user_mode == V_USER_MODE_SELECT)
+        {
+            lv_obj_add_flag(pen_button, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(book_button, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_remove_flag(select_button, LV_OBJ_FLAG_HIDDEN);
         }
         else
         {
             lv_obj_add_flag(pen_button, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(select_button, LV_OBJ_FLAG_HIDDEN);
             lv_obj_remove_flag(book_button, LV_OBJ_FLAG_HIDDEN);
         }
     }

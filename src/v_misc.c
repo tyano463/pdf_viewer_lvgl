@@ -15,6 +15,7 @@
 #include "v_misc.h"
 #include <math.h>
 
+#define CLICK_DISTANCE_THRETHOLD 10
 typedef uint8_t misc_filetype_t;
 enum
 {
@@ -525,4 +526,9 @@ char *get_original_filename(const char *filename)
     }
 
     return strdup(filename);
+}
+
+bool is_click(float distance)
+{
+    return distance < CLICK_DISTANCE_THRETHOLD;
 }

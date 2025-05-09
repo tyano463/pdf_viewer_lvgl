@@ -113,11 +113,17 @@ typedef struct
 
 typedef struct
 {
-    float left;
-    float top;
-    float right;
-    float bottom;
+    int16_t left;
+    int16_t top;
+    int16_t right;
+    int16_t bottom;
 } v_rect_t;
+
+typedef struct
+{
+    float elm[2][3];
+} v_matrix_t;
+
 typedef enum
 {
     ST_SUCCESS,
