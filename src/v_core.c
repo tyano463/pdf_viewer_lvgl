@@ -1,5 +1,15 @@
 #include "v_core.h"
 #include <math.h>
+#include <sys/eventfd.h>
+#include <errno.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <fcntl.h>
+
+#define EVENTFD_PATH "/tmp/ipc_fifo"
+
+static int fd_in;
 
 float distance(lv_point_t *a, lv_point_t *b)
 {
@@ -151,4 +161,36 @@ void matrix_multiply(v_matrix_t *result, v_matrix_t *m1, v_matrix_t *m2)
 
     // 結果を返す
     *result = temp;
+}
+
+v_status_t v_init_external_receiver(void)
+{
+    fd_in = 0;
+    int ret;
+    ret = mkfifo(EVENTFD_PATH, 0666);
+    ERR_RET(ret < 0 && errno != EEXIST, "fd create fail");
+
+    fd_in = open(EVENTFD_PATH, O_RDONLY | O_NONBLOCK);
+
+error_return:
+    return fd_in >= 0 ? ST_SUCCESS : ST_EXT_RECEIVER_INIT_FAILED;
+}
+
+v_status_t v_check_external_command(v_ext_command_t *ext_command)
+{
+    v_status_t status = ST_EXT_RECEIVER_INIT_FAILED;
+    ERR_RET(fd_in <= 0, "efd open failed");
+
+    ssize_t n = read(fd_in, ext_command, sizeof(v_ext_command_t));
+
+    if (n > 0)
+    {
+        status = ST_SUCCESS;
+    }
+    else if (errno == EAGAIN || errno == EWOULDBLOCK)
+    {
+        status = ST_EXT_NO_RECEIVE;
+    }
+error_return:
+    return status;
 }

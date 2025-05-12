@@ -16,6 +16,7 @@ static void create_menu(lv_obj_t *parent, cJSON *json);
 static void hide_menu(void);
 static void show_menu(void);
 static void set_page(int16_t page, int16_t page_max);
+static int16_t get_page(void);
 
 static v_menu_t *_menu;
 static v_menu_cb_ops_t *_ops;
@@ -378,6 +379,7 @@ static void init_ops(void)
         g_menu_ops.show_icon = show_icon;
         g_menu_ops.hide_icon = hide_icon;
         g_menu_ops.set_page = set_page;
+        g_menu_ops.get_page = get_page;
     }
 }
 
@@ -541,4 +543,9 @@ static cJSON *load_menu_settings(void)
     const char *menu_str = (const char *)get_json_ptr(MENU_JSON);
     d("menu:%p", menu_str);
     return cJSON_Parse(menu_str);
+}
+
+static int16_t get_page(void)
+{
+    return current_page;
 }

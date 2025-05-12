@@ -146,8 +146,11 @@ typedef enum
     ST_SVG_OPEN_FAILED,
     ST_JPEG_OPEN_FAILED,
     ST_MENU_OPEN_FAIL,
+    ST_EXT_RECEIVER_INIT_FAILED,
+    ST_EXT_NO_RECEIVE,
 } v_status_t;
 
+#include "v_ext_command.h"
 #include "v_log.h"
 
 #endif

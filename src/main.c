@@ -29,6 +29,8 @@ static void user_mode_changed(v_user_mode_t);
 static void pdf_callback(lv_event_t *e);
 static v_format_t get_format(const char *path);
 static v_status_t show_page(v_format_t format, const char *path, uint16_t page);
+static void ext_command_func_init(void);
+static void (*ext_command_func[V_EXT_COMMAND_MAX])(v_ext_command_t *);
 
 static lv_display_t *disp;
 static v_pen_cb_ops_t pen_cbs;
@@ -48,6 +50,7 @@ int main(int argc, char **argv)
     v_status_t status;
     char *path;
     uint16_t page;
+    v_ext_command_t ext_command;
     v_log_init();
 
     lv_init();
@@ -93,8 +96,19 @@ int main(int argc, char **argv)
     status = show_page(format, path, page);
     ERR_RETn(status != ST_SUCCESS);
 
+    status = v_init_external_receiver();
+    if (status == ST_SUCCESS)
+    {
+        ext_command_func_init();
+    }
     while (1)
     {
+        status = v_check_external_command(&ext_command);
+        if (status == ST_SUCCESS)
+        {
+            d("%d", ext_command.command);
+            ext_command_func[ext_command.command](&ext_command);
+        }
         lv_timer_handler();
         usleep(5000);
     }
@@ -354,4 +368,23 @@ static v_format_t get_format(const char *path)
         return V_FORMAT_MIDI;
 
     return V_FORMAT_MAX;
+}
+
+static void ext_on_page_changed(v_ext_command_t *command)
+{
+    int16_t page = menu_ops->get_page();
+    if (command->command == V_EXT_PAGE_PREV)
+    {
+        on_page_changed(page - 1);
+    }
+    else if (command->command == V_EXT_PAGE_NEXT)
+    {
+        on_page_changed(page + 1);
+    }
+}
+
+static void ext_command_func_init(void)
+{
+    ext_command_func[V_EXT_PAGE_PREV] = ext_on_page_changed;
+    ext_command_func[V_EXT_PAGE_NEXT] = ext_on_page_changed;
 }
