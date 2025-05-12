@@ -49,7 +49,12 @@
         "utility": "c",
         "queue.h": "c",
         "v_color.h": "c",
-        "v_assets_list.h": "c"
+        "v_assets_list.h": "c",
+        "unordered_map": "c",
+        "fstream": "c",
+        "istream": "c",
+        "numeric": "c",
+        "sstream": "c"
     },
     "C_Cpp.errorSquiggles": "disabled",
     "[jsonc]": {

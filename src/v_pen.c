@@ -104,7 +104,7 @@ static void v_pen_draw(int32_t x, int32_t y, uint8_t pressure, v_pen_draw_mode_t
             v_annot_t *annot = malloc(sizeof(v_annot_t));
             annot->kind = V_ANNOT_INKLIST;
             annot->data.inklist.num = 1;
-            annot->data.inklist.coord_type = V_ANNOT_COORD_TYPE_SCREEEN;
+            annot->data.inklist.coord_type = V_ANNOT_COORD_NEW;
             memcpy(&annot->data.inklist.pen, current_pen, sizeof(v_pen_t));
             annot->data.inklist.strokes = active;
             annot->matrix = (v_matrix_t){.elm = {{1.0f, 0.0f, 0.0f},

@@ -23,4 +23,5 @@ bool rename_ext(char *path, const char *new_ext);
 char *get_file_pattern(const char *filename);
 char *get_original_filename(const char *filename);
 bool is_click(float distance);
+uint32_t current_time_ms(void);
 #endif

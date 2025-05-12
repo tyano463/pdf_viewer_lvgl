@@ -15,12 +15,18 @@ static cJSON *load_menu_settings(void);
 static void create_menu(lv_obj_t *parent, cJSON *json);
 static void hide_menu(void);
 static void show_menu(void);
+static void set_page(int16_t page, int16_t page_max);
 
 static v_menu_t *_menu;
 static v_menu_cb_ops_t *_ops;
 static v_menu_ops_t g_menu_ops;
 static v_show_mode_t g_show_mode;
 static lv_obj_t *show_mode_button;
+static lv_obj_t *page_control;
+static lv_obj_t *page_indicator;
+static int16_t current_page;
+static int16_t current_page_max;
+static char s_page[4];
 
 static void open_file(const char *path)
 {
@@ -189,6 +195,109 @@ static void mode_changed(lv_event_t *e)
     _ops->show_mode(g_show_mode);
 }
 
+static void page_move(lv_event_t *e)
+{
+    int8_t direction = (int8_t)(intptr_t)lv_event_get_user_data(e);
+    d("cur:%d %d", current_page, direction);
+    if (!direction)
+    {
+        lv_obj_t *slider = lv_event_get_target_obj(e);
+        int16_t value = lv_slider_get_value(slider);
+        d("page:%d", value);
+        set_page(value, current_page_max);
+    }
+    else
+    {
+        set_page(current_page + direction, current_page_max);
+    }
+
+    _ops->change_page(current_page);
+}
+
+static void page_button(lv_obj_t *parent)
+{
+
+    lv_image_dsc_t *prev_image = get_icon_dsc("prev_page");
+    lv_image_dsc_t *next_image = get_icon_dsc("next_page");
+    page_control = lv_obj_create(parent);
+    lv_obj_remove_style_all(page_control);
+    lv_obj_set_flex_flow(page_control, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(page_control, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_size(page_control, 200, 40);
+    lv_obj_align(page_control, LV_ALIGN_BOTTOM_MID, 0, -10);
+
+    page_indicator = lv_label_create(page_control);
+    lv_obj_remove_style_all(page_indicator);
+    sprintf(s_page, "%d", 1);
+    lv_label_set_text(page_indicator, s_page);
+    lv_obj_set_user_data(page_control, page_indicator);
+
+    lv_obj_t *container = lv_obj_create(page_control);
+    lv_obj_remove_style_all(container);
+    lv_obj_set_flex_flow(container, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_size(container, 200, 40);
+    lv_obj_align(container, LV_ALIGN_BOTTOM_MID, 0, -10);
+
+    lv_obj_t *prev_img = lv_img_create(container);
+    lv_img_set_src(prev_img, prev_image);
+    lv_obj_add_flag(prev_img, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(prev_img, page_move, LV_EVENT_SINGLE_CLICKED, (void *)(intptr_t)-1);
+
+    static const lv_style_prop_t props[] = {LV_STYLE_BG_COLOR, 0};
+    static lv_style_transition_dsc_t transition_dsc;
+    lv_style_transition_dsc_init(&transition_dsc, props, lv_anim_path_linear, 300, 0, NULL);
+
+    static lv_style_t style_main;
+    static lv_style_t style_indicator;
+    static lv_style_t style_knob;
+    static lv_style_t style_pressed_color;
+    lv_style_init(&style_main);
+    lv_style_set_bg_opa(&style_main, LV_OPA_COVER);
+    lv_style_set_bg_color(&style_main, lv_color_hex3(0xbbb));
+    lv_style_set_radius(&style_main, LV_RADIUS_CIRCLE);
+    lv_style_set_pad_ver(&style_main, -2); /*Makes the indicator larger*/
+
+    lv_style_init(&style_indicator);
+    lv_style_set_bg_opa(&style_indicator, LV_OPA_COVER);
+    lv_style_set_bg_color(&style_indicator, (lv_color_t)LV_COLOR_MAKE(255, 255, 255));
+    lv_style_set_radius(&style_indicator, LV_RADIUS_CIRCLE);
+    lv_style_set_border_width(&style_indicator, 1);
+    lv_style_set_transition(&style_indicator, &transition_dsc);
+    lv_style_set_height(&style_indicator, 8);
+
+    lv_style_init(&style_knob);
+    lv_style_set_bg_opa(&style_knob, LV_OPA_COVER);
+    lv_style_set_bg_color(&style_knob, (lv_color_t)LV_COLOR_MAKE(255, 255, 255));
+    lv_style_set_border_color(&style_knob, (lv_color_t)LV_COLOR_MAKE(0, 0, 0));
+    lv_style_set_border_width(&style_knob, 2);
+    lv_style_set_radius(&style_knob, LV_RADIUS_CIRCLE);
+    lv_style_set_pad_all(&style_knob, 3); /*Makes the knob larger*/
+    lv_style_set_transition(&style_knob, &transition_dsc);
+
+    lv_style_init(&style_pressed_color);
+    lv_style_set_bg_color(&style_pressed_color, (lv_color_t)LV_COLOR_MAKE(255, 255, 255));
+
+    lv_obj_t *slider = lv_slider_create(container);
+    lv_obj_remove_style_all(slider);
+    lv_slider_set_range(slider, 1, 10);
+    lv_slider_set_value(slider, 1, LV_ANIM_OFF);
+
+    lv_obj_add_style(slider, &style_main, LV_PART_MAIN);
+    lv_obj_add_style(slider, &style_indicator, LV_PART_INDICATOR);
+    lv_obj_add_style(slider, &style_pressed_color, LV_PART_INDICATOR | LV_STATE_PRESSED);
+    lv_obj_add_style(slider, &style_knob, LV_PART_KNOB);
+    lv_obj_add_style(slider, &style_pressed_color, LV_PART_KNOB | LV_STATE_PRESSED);
+    lv_obj_set_size(slider, 80, 6);
+    lv_obj_add_event_cb(slider, page_move, LV_EVENT_VALUE_CHANGED, 0);
+
+    lv_obj_t *next_img = lv_img_create(container);
+    lv_img_set_src(next_img, next_image);
+    lv_obj_add_flag(next_img, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(next_img, page_move, LV_EVENT_SINGLE_CLICKED, (void *)(intptr_t)1);
+    lv_obj_set_style_pad_column(container, 12, 0);
+}
+
 static void switch_button(lv_obj_t *parent)
 {
     //    lv_img_dsc_t *dsc = get_icon_dsc("circle");
@@ -212,6 +321,8 @@ static v_status_t v_menu_init(lv_obj_t *parent, v_menu_cb_ops_t *ops)
     create_menu(parent, json);
 
     switch_button(parent);
+
+    page_button(parent);
 
     _ops = ops;
     g_show_mode = V_SHOW_MODE_ANNOT_WITH_MENU;
@@ -240,6 +351,25 @@ static void show_icon(void)
     set_icon_visibiliry(true);
 }
 
+static void set_page(int16_t _page, int16_t page_max)
+{
+    current_page_max = page_max;
+    d("page:%d", _page);
+    _page = max(1, _page);
+    _page = min(_page, page_max);
+
+    ERR_RETn(_page == current_page);
+    current_page = _page;
+    uint16_t page = current_page;
+    snprintf(s_page, sizeof(s_page), "%d", page % 1000);
+    d("%s", s_page);
+    if (page_indicator)
+        lv_label_set_text(page_indicator, s_page);
+
+error_return:
+    return;
+}
+
 static void init_ops(void)
 {
     if (!g_menu_ops.init)
@@ -247,6 +377,7 @@ static void init_ops(void)
         g_menu_ops.init = v_menu_init;
         g_menu_ops.show_icon = show_icon;
         g_menu_ops.hide_icon = hide_icon;
+        g_menu_ops.set_page = set_page;
     }
 }
 

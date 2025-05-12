@@ -32,8 +32,9 @@ enum
 typedef uint8_t v_annot_coord_type_t;
 enum
 {
-    V_ANNOT_COORD_TYPE_FILE,
-    V_ANNOT_COORD_TYPE_SCREEEN,
+    V_ANNOT_COORD_ORIGINAL,
+    V_ANNOT_COORD_MODIFIED,
+    V_ANNOT_COORD_NEW,
 };
 
 typedef struct str_v_pen_shape

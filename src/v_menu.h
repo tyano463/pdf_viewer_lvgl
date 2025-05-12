@@ -18,7 +18,7 @@ typedef struct str_v_menu_cb_ops
     void (*save)(void);
     void (*export_pdf)(const char *);
     void (*show_mode)(v_show_mode_t mode);
-
+    void (*change_page)(uint16_t page);
 } v_menu_cb_ops_t;
 
 typedef struct str_v_menu_ops
@@ -26,6 +26,7 @@ typedef struct str_v_menu_ops
     v_status_t (*init)(lv_obj_t *parent, v_menu_cb_ops_t *ops);
     void (*show_icon)(void);
     void (*hide_icon)(void);
+    void (*set_page)(int16_t page, int16_t page_max);
 } v_menu_ops_t;
 v_menu_ops_t *v_get_menu_ops(void);
 

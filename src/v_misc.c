@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <ctype.h>
 #include <stdarg.h>
+#include <time.h>
 #include <libgen.h>
 
 #include "v_common.h"
@@ -531,4 +532,11 @@ char *get_original_filename(const char *filename)
 bool is_click(float distance)
 {
     return distance < CLICK_DISTANCE_THRETHOLD;
+}
+
+uint32_t current_time_ms(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint32_t)(ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
 }

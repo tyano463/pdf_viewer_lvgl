@@ -92,6 +92,7 @@ typedef struct str_v_draw_ops
     void (*free)(void);
     v_annots_t *(*annots)(void);
     void (*save)(const char *path);
+
 } v_draw_ops_t;
 
 typedef struct str_v_viewer_ops

@@ -96,10 +96,10 @@ static void v_add_freetext(v_annot_t *annot)
     v_freetext_t *t = &annot->data.freetext;
 
     int16_t w, h;
-    w = lv_obj_get_width(lv_screen_active());
-    h = lv_obj_get_width(lv_screen_active());
+    w = lv_obj_get_width(canvas);
+    h = lv_obj_get_width(canvas);
 
-    annot->pdf_annot_obj = (void *)lv_canvas_create(image);
+    annot->pdf_annot_obj = (void *)lv_canvas_create(canvas);
     lv_draw_buf_t *d = malloc(sizeof(lv_draw_buf_t) + w * h * 4);
     lv_obj_t *a = annot->pdf_annot_obj;
     lv_draw_buf_init(d, w, h, LV_COLOR_FORMAT_ARGB8888, w * 4, &d[1], w * h * 4);
@@ -136,18 +136,29 @@ static void v_add_freetext(v_annot_t *annot)
     lv_canvas_finish_layer(a, &l);
 }
 
+static void set_scale_translate_matrix(v_matrix_t *m, float scale, float ox, float oy)
+{
+    m->elm[0][0] = scale;
+    m->elm[0][1] = 0.0f;
+    m->elm[0][2] = ox;
+
+    m->elm[1][0] = 0.0f;
+    m->elm[1][1] = scale;
+    m->elm[1][2] = oy;
+}
+
 static void v_add_inklist(v_annot_t *annot)
 {
     v_inklist_t *il = &annot->data.inklist;
     d("");
     lv_image_dsc_t *imdsc = (lv_image_dsc_t *)lv_image_get_src(image);
     int16_t w, h;
-    w = lv_obj_get_width(lv_screen_active());
-    h = lv_obj_get_height(lv_screen_active());
+    w = lv_obj_get_width(canvas);
+    h = lv_obj_get_height(canvas);
     int32_t ox = (w - imdsc->header.w) / 2;
     int32_t oy = 0;
 
-    annot->pdf_annot_obj = (void *)lv_canvas_create(image);
+    annot->pdf_annot_obj = (void *)lv_canvas_create(canvas);
     lv_draw_buf_t *d = malloc(sizeof(lv_draw_buf_t) + w * h * 4);
     lv_obj_t *a = annot->pdf_annot_obj;
     lv_draw_buf_init(d, w, h, LV_COLOR_FORMAT_ARGB8888, w * 4, &d[1], w * h * 4);
@@ -169,22 +180,16 @@ static void v_add_inklist(v_annot_t *annot)
         v_stroke_t *st = &il->strokes[i];
         lv_draw_line_dsc_t *dsc = lv_malloc(sizeof(lv_draw_line_dsc_t));
         lv_draw_line_dsc_init(dsc);
+        if (il->coord_type == V_ANNOT_COORD_ORIGINAL)
+        {
+            set_scale_translate_matrix(&annot->matrix, g_scale, (float)ox, (float)oy);
+        }
         for (int j = 1; j < st->num; j++)
         {
-            if (il->coord_type == V_ANNOT_COORD_TYPE_SCREEEN)
-            {
-                dsc->p1.x = st->points[j - 1].x;
-                dsc->p1.y = st->points[j - 1].y;
-                dsc->p2.x = st->points[j].x;
-                dsc->p2.y = st->points[j].y;
-            }
-            else
-            {
-                dsc->p1.x = st->points[j - 1].x * g_scale + ox;
-                dsc->p1.y = st->points[j - 1].y * g_scale + oy;
-                dsc->p2.x = st->points[j].x * g_scale + ox;
-                dsc->p2.y = st->points[j].y * g_scale + oy;
-            }
+            dsc->p1.x = st->points[j - 1].x;
+            dsc->p1.y = st->points[j - 1].y;
+            dsc->p2.x = st->points[j].x;
+            dsc->p2.y = st->points[j].y;
 
             lv_point_precise_t p1 = dsc->p1;
             lv_point_precise_t p2 = dsc->p2;
@@ -583,6 +588,10 @@ static void v_move(lv_point_t *from, lv_point_t *to)
     memcpy(&before_matrix, &a->matrix, sizeof(v_matrix_t));
     set_move_matrix(&after_matrix, from, to);
     matrix_multiply(&a->matrix, &before_matrix, &after_matrix);
+    if (a->kind == V_ANNOT_COORD_ORIGINAL)
+    {
+        a->kind = V_ANNOT_COORD_MODIFIED;
+    }
     v_add_annot(a);
     hide_annot_control();
     show_annot_control(a);
@@ -670,6 +679,10 @@ static void on_resize_dragged(lv_event_t *ev)
         memcpy(&before_matrix, &a->matrix, sizeof(v_matrix_t));
         set_scale_matrix(&after_matrix, &center, scale);
         matrix_multiply(&a->matrix, &before_matrix, &after_matrix);
+        if (a->kind == V_ANNOT_COORD_ORIGINAL)
+        {
+            a->kind = V_ANNOT_COORD_MODIFIED;
+        }
         v_add_annot(a);
         hide_annot_control();
         show_annot_control(a);

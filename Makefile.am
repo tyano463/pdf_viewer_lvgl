@@ -51,7 +51,9 @@ AM_CXXFLAGS = $(C_INC) -g -O0 -DHIDE_HIDDEN_FILES=1 `pkg-config librsvg-2.0 cair
 #AM_CPPFLAGS = $(C_INC) -g -O0 -fsanitize=address
 AM_LDFLAGS = -lmupdf -lX11 -lstdc++ -lm -lsmf -Wl,-rpath=/usr/local/lib `pkg-config librsvg-2.0 cairo libcjson libjpeg --libs`
 
-ASSETS = hamburger pen close_button eraser resize open_book select circle
+ASSETS = hamburger pen close_button eraser resize \
+	open_book select circle \
+	prev_page next_page
 ASSET_SRCS = $(addprefix assets_, $(addsuffix _bmp.c, $(ASSETS)))
 JSON = menu ja en
 JSON_SRCS = $(addprefix assets_, $(addsuffix _json.c, $(JSON)))
@@ -67,6 +69,8 @@ EXTRA_DIST = assets/hamburger.bmp \
 	assets/resize.bmp \
 	assets/select.bmp \
 	assets/circle.bmp \
+	assets/prev_page.bmp \
+	assets/next_page.bmp \
 	assets/menu.json \
 	assets/ja.json \
 	assets/en.json

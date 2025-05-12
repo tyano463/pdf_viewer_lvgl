@@ -17,6 +17,7 @@ static void v_pdf_save(const char *);
 static v_pdf_t *pdf;
 static fz_pixmap *pix;
 static v_draw_ops_t ops;
+static char current_path[MAX_PATH];
 
 static void init_ops(void)
 {
@@ -66,6 +67,8 @@ static v_status_t v_pdf_loadpage(int page)
     v_status_t status = ST_PDF_OPEN_FAILED;
     ERR_RET(!pdf, "pdf is null");
 
+    page = page - 1;
+    page = max(page, 0);
     if (pdf->page)
     {
         if (pdf->page->number == page)
@@ -76,10 +79,10 @@ static v_status_t v_pdf_loadpage(int page)
         else
         {
             v_pdf_release_pixel_data();
-            fz_drop_document(pdf->ctx, pdf->doc);
+            // fz_drop_document(pdf->ctx, pdf->doc);
         }
     }
-    pdf->page = fz_load_page(pdf->ctx, pdf->doc, 0);
+    pdf->page = fz_load_page(pdf->ctx, pdf->doc, page);
     fz_rect bounds = fz_bound_page(pdf->ctx, pdf->page);
     pdf->width = bounds.x1 - bounds.x0;
     pdf->height = bounds.y1 - bounds.y0;
@@ -90,8 +93,10 @@ error_return:
 }
 static v_status_t v_pdf_open(const char *path)
 {
-    v_status_t status;
+    v_status_t status = ST_SUCCESS;
+    ERR_RET(strcmp(path, current_path) == 0, "page change only");
 
+    sprintf(current_path, "%s", path);
     fz_try(pdf->ctx)
         pdf->doc = fz_open_document(pdf->ctx, path);
     fz_catch(pdf->ctx)
@@ -105,7 +110,7 @@ static v_status_t v_pdf_open(const char *path)
     pdf->changed = false;
 
     // Load the first page
-    status = v_pdf_loadpage(0);
+    status = v_pdf_loadpage(1);
 
 error_return:
     return status;
@@ -326,7 +331,7 @@ static v_annots_t *v_pdf_get_annots(void)
             pdf_obj *inklist = pdf_dict_get(pdf->ctx, obj, PDF_NAME(InkList));
             a->data.inklist.num = pdf_array_len(pdf->ctx, inklist);
             a->data.inklist.strokes = malloc(sizeof(v_stroke_t) * a->data.inklist.num);
-            a->data.inklist.coord_type = V_ANNOT_COORD_TYPE_FILE;
+            a->data.inklist.coord_type = V_ANNOT_COORD_ORIGINAL;
             for (int i = 0; i < pdf_array_len(pdf->ctx, inklist); i++)
             {
                 v_stroke_t *s = &a->data.inklist.strokes[i];
@@ -414,7 +419,7 @@ static v_status_t v_pdf_alloc_pixel_data(uint8_t *data, int page, int rowstride,
     cs = fz_device_rgb(pdf->ctx);
 
     v_pdf_release_pixel_data();
-
+    v_pdf_loadpage(page);
     // exclude annotation
     pix = fz_new_pixmap_from_page_contents(pdf->ctx, pdf->page, ctm, cs, 0);
     // include annotation

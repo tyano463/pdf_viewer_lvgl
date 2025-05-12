@@ -11,6 +11,8 @@
     ENTRY(eraser)    \
     ENTRY(resize)    \
     ENTRY(circle)    \
+    ENTRY(prev_page) \
+    ENTRY(next_page) \
     ENTRY(close_button)
 
 #define JSON_LIST \

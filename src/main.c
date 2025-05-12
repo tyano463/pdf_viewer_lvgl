@@ -115,6 +115,13 @@ static void save_as(const char *file)
     d("%s", file);
 }
 
+static void on_page_changed(uint16_t page)
+{
+    d("page:%d", page);
+    v_format_t format = get_format(current_path);
+    show_page(format, current_path, page);
+}
+
 static void show_mode(v_show_mode_t mode)
 {
     d("mode:%s(%d)", v_show_mode_t_to_string(mode), mode);
@@ -148,6 +155,7 @@ static void init(void)
     menu_cbs.save = save_current_file;
     menu_cbs.save_as = save_as;
     menu_cbs.show_mode = show_mode;
+    menu_cbs.change_page = on_page_changed;
 
     draw_ops[V_FORMAT_JPEG] = v_jpeg_get_ops;
     draw_ops[V_FORMAT_MIDI] = v_midi_get_ops;
@@ -260,7 +268,7 @@ static v_draw_ops_t *get_ops(v_format_t format)
 static v_status_t show_page(v_format_t format, const char *path, uint16_t page)
 {
     v_status_t status = ST_PDF_OPEN_FAILED;
-    d("format:%d", format);
+    d("format:%d page:%d", format, page);
     v_draw_ops_t *ops = get_ops(format);
     ERR_RET(!ops || !ops->init || !ops->open || !ops->size || !ops->pixel, "get ops %p", ops);
 
@@ -280,7 +288,9 @@ static v_status_t show_page(v_format_t format, const char *path, uint16_t page)
         free(orig_data);
     }
     orig_data = calloc(h * w * 4, 1);
-    status = ops->pixel(orig_data, 0, w * 4, (v_scale_t){1, 1});
+    int16_t page_max = ops->pagenum();
+    menu_ops->set_page(page, page_max);
+    status = ops->pixel(orig_data, page, w * 4, (v_scale_t){1, 1});
     ERR_RET(status != ST_SUCCESS, "### ERROR get pixel");
 
     uint8_t *data = orig_data;
