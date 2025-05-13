@@ -91,7 +91,7 @@ typedef struct str_v_draw_ops
     v_status_t (*pixel)(uint8_t *data, int page, int rowstride, v_scale_t ctm);
     void (*free)(void);
     v_annots_t *(*annots)(void);
-    void (*save)(const char *path);
+    void (*save)(const char *path, v_annots_t *);
 
 } v_draw_ops_t;
 
@@ -109,6 +109,8 @@ typedef struct str_v_viewer_ops
     void (*queue)(v_draw_event_t *ev);
     void (*select)(lv_point_t *);
     void (*move)(lv_point_t *, lv_point_t *);
+    v_annots_t *(*annots)(void);
+    void (*matrix)(v_matrix_t *m);
 } v_viewer_ops_t;
 
 v_viewer_ops_t *v_get_canvas_ops(void);

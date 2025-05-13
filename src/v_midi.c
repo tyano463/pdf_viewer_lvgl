@@ -27,7 +27,7 @@ static v_status_t v_midi_size(int *width, int *height);
 static v_status_t v_midi_pixel(uint8_t *data, int page, int rowstride, v_scale_t ctm);
 static void v_midi_free(void);
 static v_annots_t *v_midi_annots(void);
-static void v_midi_save(const char *path);
+static void v_midi_save(const char *path, v_annots_t *);
 
 static v_draw_ops_t g_ops;
 static v_draw_ops_t *pdf_ops;
@@ -1240,9 +1240,9 @@ static v_annots_t *v_midi_annots(void)
 {
     return pdf_ops->annots();
 }
-static void v_midi_save(const char *path)
+static void v_midi_save(const char *path, v_annots_t *_)
 {
-    return pdf_ops->save(path);
+    return pdf_ops->save(path, NULL);
 }
 
 const char *MXL_HEADER = R"(<?xml version="1.0" encoding="UTF-8" standalone="no"?>

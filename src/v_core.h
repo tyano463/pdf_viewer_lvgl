@@ -14,4 +14,5 @@ float scale_factor(v_matrix_t *m);
 void matrix_multiply(v_matrix_t *result, v_matrix_t *m1, v_matrix_t *m2);
 v_status_t v_check_external_command(v_ext_command_t *ext_command);
 v_status_t v_init_external_receiver(void);
+bool inverse_matrix(const v_matrix_t *orig, v_matrix_t *inv);
 #endif

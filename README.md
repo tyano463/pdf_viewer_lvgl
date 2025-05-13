@@ -4,12 +4,15 @@ Sheet music viewer using LVGL.
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [Build Instructions](#build-instructions)
-- [Usage](#usage)
-- [License](#license)
-- [Contributing](#contributing)
-- [Contact](#contact)
+- [PDF Viewer](#pdf-viewer)
+  - [Table of Contents](#table-of-contents)
+  - [Overview](#overview)
+  - [Build](#build)
+  - [Usage](#usage)
+  - [License](#license)
+    - [External Tools](#external-tools)
+  - [Contributing](#contributing)
+  - [Contact](#contact)
 
 ## Overview
 
@@ -59,6 +62,7 @@ For detailed license information, refer to the LICENSE-libjpeg-turbo.md file pro
 8. [libsmf](https://sourceforge.net/projects/libsmf/): Licensed under the BSD-2-Clause.
 9. [qpdf](https://github.com/qpdf/qpdf): Licensed under the  Apache-2.0 license. qpdf is executed as a separate process and is not dynamically or statically linked with this software.
 10. [MuseScore](https://musescore.org/): Licensed under the GNU General Public License version 2 or later (GPL-2.0-or-later). For details, see LICENSE-MuseScore.md. MuseScore is executed as a separate process and is not dynamically or statically linked with this software.
+11. [uthash](https://troydhanson.github.io/uthash/license.html): Lincensed under the BSD-3-Clause.
 
 ## Contributing
 

@@ -1,7 +1,18 @@
 #include <ctype.h>
+#include <mupdf/pdf/object.h>
 #include "v_common.h"
 #include "v_pdf.h"
 #include "v_misc.h"
+#include "v_core.h"
+
+#include "uthash.h"
+
+typedef struct
+{
+    pdf_annot *key;
+    v_annot_t *value;
+    UT_hash_handle hh;
+} annot_map_t;
 
 static void init_ops(void);
 static v_status_t v_pdf_init(void);
@@ -12,7 +23,7 @@ static v_status_t v_pdf_alloc_pixel_data(uint8_t *data, int page, int rowstride,
 static void v_pdf_release_pixel_data(void);
 static v_annots_t *v_pdf_get_annots(void);
 static void v_pdf_release(void);
-static void v_pdf_save(const char *);
+static void v_pdf_save(const char *, v_annots_t *annots);
 
 static v_pdf_t *pdf;
 static fz_pixmap *pix;
@@ -332,6 +343,8 @@ static v_annots_t *v_pdf_get_annots(void)
             a->data.inklist.num = pdf_array_len(pdf->ctx, inklist);
             a->data.inklist.strokes = malloc(sizeof(v_stroke_t) * a->data.inklist.num);
             a->data.inklist.coord_type = V_ANNOT_COORD_ORIGINAL;
+            a->matrix = (v_matrix_t){.elm = {{1.0f, 0.0f, 0.0f},
+                                             {0.0f, -1.0f, pdf->height}}};
             for (int i = 0; i < pdf_array_len(pdf->ctx, inklist); i++)
             {
                 v_stroke_t *s = &a->data.inklist.strokes[i];
@@ -342,10 +355,8 @@ static v_annots_t *v_pdf_get_annots(void)
                 s->points = malloc(sizeof(v_point_t) * s->max);
                 for (int j = 0; j < sn / 2; j++)
                 {
-                    float x = pdf_to_real(pdf->ctx, pdf_array_get(pdf->ctx, stroke, j * 2));
-                    float y = pdf_to_real(pdf->ctx, pdf_array_get(pdf->ctx, stroke, j * 2 + 1));
-                    s->points[j].x = x;
-                    s->points[j].y = pdf->height - y;
+                    s->points[j].x = pdf_to_real(pdf->ctx, pdf_array_get(pdf->ctx, stroke, j * 2));
+                    s->points[j].y = pdf_to_real(pdf->ctx, pdf_array_get(pdf->ctx, stroke, j * 2 + 1));
                 }
             }
         }
@@ -461,8 +472,171 @@ static void v_pdf_release_pixel_data(void)
     }
 }
 
-static void v_pdf_save(const char *path)
+static bool apply_annotation(v_annot_t *a, v_matrix_t *inv)
 {
+    bool ret = false;
+    pdf_annot *annot = NULL;
+    v_inklist_t *inklist = &a->data.inklist;
+
+    ERR_RETn(!inklist);
+    ERR_RETn(!inklist->num);
+
+    annot = pdf_create_annot(pdf->ctx, (pdf_page *)pdf->page, PDF_ANNOT_INK);
+    ERR_RET(!annot, "annotation create failed");
+
+    {
+        float color[3] = {
+            inklist->pen.color.c.red / 255.0f,
+            inklist->pen.color.c.green / 255.0f,
+            inklist->pen.color.c.blue / 255.0f,
+        };
+        pdf_set_annot_color(pdf->ctx, annot, 3, color);
+        d("color:%.02f,%.02f,%.02f", color[0], color[1], color[2]);
+    }
+
+    {
+        float width = (float)inklist->pen.size;
+        pdf_set_annot_border(pdf->ctx, annot, width);
+        d("w:%.02f", width);
+    }
+
+    pdf_obj *obj = pdf_annot_obj(pdf->ctx, annot);
+    pdf_dict_puts(pdf->ctx, obj, "CA", pdf_new_real(pdf->ctx, inklist->pen.color.c.alpha / 255.0f));
+
+    pdf_obj *list = pdf_new_array(pdf->ctx, (pdf_document *)pdf->doc, inklist->num);
+    d("inklist num:%d", inklist->num);
+    for (int i = 0; i < inklist->num; i++)
+    {
+        v_stroke_t *st = &inklist->strokes[i];
+        pdf_obj *stroke = pdf_new_array(pdf->ctx, (pdf_document *)pdf->doc, st->num);
+
+        d("stroke num:%d", st->num);
+        for (int j = 0; j < st->num; j++)
+        {
+            float x = st->points[j].x;
+            float y = st->points[j].y;
+
+            x = inv->elm[0][0] * x + inv->elm[0][1] * y + inv->elm[0][2];
+            y = inv->elm[1][0] * x + inv->elm[1][1] * y + inv->elm[1][2];
+            pdf_array_push(pdf->ctx, stroke, pdf_new_real(pdf->ctx, x));
+            pdf_array_push(pdf->ctx, stroke, pdf_new_real(pdf->ctx, y));
+        }
+        pdf_array_push(pdf->ctx, list, stroke);
+    }
+    pdf_dict_puts(pdf->ctx, obj, "InkList", list);
+
+    pdf_add_annot_ink_list_stroke(pdf->ctx, annot);
+    pdf_update_annot(pdf->ctx, annot);
+
+    ret = true;
+error_return:
+    return ret;
+}
+
+static void annots_to_document(v_annots_t *annots)
+{
+    pdf_annot *annot;
+    pdf_annot **delete_candidates = NULL;
+    int delete_num = 0;
+    annot_map_t *annot_map = NULL;
+
+    ERR_RETn(!annots);
+
+    v_viewer_ops_t *ops = v_get_canvas_ops();
+    v_matrix_t m, inv;
+    ops->matrix(&m);
+    bool invertible = inverse_matrix(&m, &inv);
+
+    for (int i = 0; i < annots->num; i++)
+    {
+        v_annot_t *a = &annots->annot[i];
+        if (a->kind == V_ANNOT_COORD_NEW)
+            continue;
+
+        annot_map_t *entry = malloc(sizeof(annot_map_t));
+        entry->key = a->pdf_annot_obj;
+        entry->value = a;
+        HASH_ADD_PTR(annot_map, key, entry);
+    }
+
+    annot = pdf_first_annot(pdf->ctx, (pdf_page *)pdf->page);
+    while (annot)
+    {
+        annot_map_t *entry;
+        HASH_FIND_PTR(annot_map, &annot, entry);
+        if (entry)
+        {
+            if (invertible && entry->value->kind == V_ANNOT_COORD_MODIFIED)
+            {
+                // 修正処理
+                d("modified found");
+                pdf_obj *obj = pdf_annot_obj(pdf->ctx, annot);
+                if (!obj)
+                    continue;
+
+                pdf_obj *inklist = pdf_dict_get(pdf->ctx, obj, PDF_NAME(InkList));
+                int n = pdf_array_len(pdf->ctx, inklist);
+                if (entry->value->data.inklist.num != n)
+                    continue;
+
+                for (int i = 0; i < n; i++)
+                {
+                    pdf_obj *stroke = pdf_array_get(pdf->ctx, inklist, i);
+                    int sn = pdf_array_len(pdf->ctx, stroke);
+                    for (int j = 0; j < (sn / 2); j++)
+                    {
+                        lv_point_precise_t point, after;
+                        point.x = pdf_to_real(pdf->ctx, pdf_array_get(pdf->ctx, stroke, j * 2));
+                        point.y = pdf_to_real(pdf->ctx, pdf_array_get(pdf->ctx, stroke, j * 2 + 1));
+
+                        after.x = inv.elm[0][0] * point.x +
+                                  inv.elm[0][1] * point.y +
+                                  inv.elm[0][2];
+                        after.y = inv.elm[1][0] * point.x +
+                                  inv.elm[1][1] * point.y +
+                                  inv.elm[1][2];
+                        pdf_array_put_real(pdf->ctx, stroke, j * 2, after.x);
+                        pdf_array_put_real(pdf->ctx, stroke, j * 2 + 1, after.y);
+                    }
+                }
+                pdf_update_annot(pdf->ctx, annot);
+            }
+        }
+        else
+        {
+            delete_candidates = realloc(delete_candidates, sizeof(pdf_annot *) * (delete_num + 1));
+            delete_candidates[delete_num++] = annot;
+        }
+        annot = pdf_next_annot(pdf->ctx, annot);
+    }
+
+    // 削除処理
+    for (int i = 0; i < delete_num; i++)
+    {
+        d("delete found");
+        annot = delete_candidates[i];
+        pdf_delete_annot(pdf->ctx, (pdf_page *)pdf->page, annot);
+    }
+
+    // 追加処理
+    for (int i = 0; i < annots->num; i++)
+    {
+        v_annot_t *a = &annots->annot[i];
+        if (a->data.inklist.coord_type != V_ANNOT_COORD_NEW)
+            continue;
+        d("new annot found");
+        apply_annotation(a, &inv);
+    }
+
+error_return:
+    if (delete_candidates)
+        free(delete_candidates);
+    return;
+}
+
+static void v_pdf_save(const char *path, v_annots_t *annots)
+{
+    d("IN");
     ERR_RET(!path, "path is null");
     ERR_RET(!pdf || !pdf->ctx, "ctx is null");
 
@@ -475,8 +649,11 @@ static void v_pdf_save(const char *path)
     }
     free(dirname);
 
+    annots_to_document(annots);
+
     pdf_save_document(pdf->ctx, (pdf_document *)pdf->doc, path, NULL);
 
+    d("OUT");
 error_return:
     return;
 }

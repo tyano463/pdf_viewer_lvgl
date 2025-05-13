@@ -194,3 +194,32 @@ v_status_t v_check_external_command(v_ext_command_t *ext_command)
 error_return:
     return status;
 }
+
+bool inverse_matrix(const v_matrix_t *orig, v_matrix_t *inv)
+{
+    // アフィン変換行列の要素を抽出
+    float a = orig->elm[0][0];
+    float c = orig->elm[0][1];
+    float e = orig->elm[0][2];
+    float b = orig->elm[1][0];
+    float d = orig->elm[1][1];
+    float f = orig->elm[1][2];
+
+    // 行列の 2x2 部分の行列式を計算
+    float det = a * d - b * c;
+    if (det == 0.0f)
+        return false; // 逆行列が存在しない
+
+    float inv_det = 1.0f / det;
+
+    // 逆行列を計算
+    inv->elm[0][0] = d * inv_det;
+    inv->elm[0][1] = -c * inv_det;
+    inv->elm[0][2] = (c * f - d * e) * inv_det;
+
+    inv->elm[1][0] = -b * inv_det;
+    inv->elm[1][1] = a * inv_det;
+    inv->elm[1][2] = (b * e - a * f) * inv_det;
+
+    return true;
+}

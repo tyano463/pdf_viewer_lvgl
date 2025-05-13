@@ -26,6 +26,9 @@ static void on_remove_pressed(lv_event_t *);
 static void on_resize_dragged(lv_event_t *);
 static void show_annot_control(v_annot_t *a);
 static void hide_annot_control(void);
+static v_annots_t *v_all_annots(void);
+static void set_scale_translate_matrix(v_matrix_t *m, float scale, float ox, float oy);
+static void v_get_matrix(v_matrix_t *m);
 
 extern lv_font_t source_hans_16;
 extern lv_font_t source_hans_20;
@@ -72,6 +75,8 @@ static void init_ops(void)
         ops.queue = v_queue;
         ops.select = v_select;
         ops.move = v_move;
+        ops.annots = v_all_annots;
+        ops.matrix = v_get_matrix;
     }
 }
 
@@ -136,6 +141,20 @@ static void v_add_freetext(v_annot_t *annot)
     lv_canvas_finish_layer(a, &l);
 }
 
+static void v_get_matrix(v_matrix_t *m)
+{
+    v_matrix_t mx_vmirror, mx_scale;
+    lv_image_dsc_t *imdsc = (lv_image_dsc_t *)lv_image_get_src(image);
+    int16_t w;
+    w = lv_obj_get_width(canvas);
+    int32_t ox = (w - imdsc->header.w) / 2;
+    int32_t oy = 0;
+    mx_vmirror = (v_matrix_t){.elm = {{1.0f, 0.0f, 0.0f},
+                                      {0.0f, -1.0f, imdsc->header.h}}};
+    set_scale_translate_matrix(&mx_scale, g_scale, ox, oy);
+    matrix_multiply(m, &mx_vmirror, &mx_scale);
+}
+
 static void set_scale_translate_matrix(v_matrix_t *m, float scale, float ox, float oy)
 {
     m->elm[0][0] = scale;
@@ -182,7 +201,10 @@ static void v_add_inklist(v_annot_t *annot)
         lv_draw_line_dsc_init(dsc);
         if (il->coord_type == V_ANNOT_COORD_ORIGINAL)
         {
-            set_scale_translate_matrix(&annot->matrix, g_scale, (float)ox, (float)oy);
+            v_matrix_t before, m;
+            memcpy(&before, &annot->matrix, sizeof(v_matrix_t));
+            set_scale_translate_matrix(&m, g_scale, (float)ox, (float)oy);
+            matrix_multiply(&annot->matrix, &before, &m);
         }
         for (int j = 1; j < st->num; j++)
         {
@@ -687,4 +709,33 @@ static void on_resize_dragged(lv_event_t *ev)
         hide_annot_control();
         show_annot_control(a);
     }
+}
+
+static v_annots_t *v_all_annots(void)
+{
+    v_annots_t *ret = NULL;
+    v_annots_t *annots;
+    v_annot_t *iter;
+    int i, n;
+
+    n = 0;
+    TAILQ_FOREACH(iter, an_head, entry)
+    {
+        n++;
+    }
+
+    annots = malloc(sizeof(v_annots_t) + sizeof(v_annot_t) * n);
+    ERR_RET(!annots, "memory error");
+
+    annots->num = n;
+
+    i = 0;
+    TAILQ_FOREACH(iter, an_head, entry)
+    {
+        memcpy(&annots->annot[i++], iter, sizeof(v_annot_t));
+    }
+
+    ret = annots;
+error_return:
+    return ret;
 }

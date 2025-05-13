@@ -30,8 +30,9 @@ static void pdf_callback(lv_event_t *e);
 static v_format_t get_format(const char *path);
 static v_status_t show_page(v_format_t format, const char *path, uint16_t page);
 static void ext_command_func_init(void);
-static void (*ext_command_func[V_EXT_COMMAND_MAX])(v_ext_command_t *);
+static v_draw_ops_t *get_ops(v_format_t format);
 
+static void (*ext_command_func[V_EXT_COMMAND_MAX])(v_ext_command_t *);
 static lv_display_t *disp;
 static v_pen_cb_ops_t pen_cbs;
 static v_pen_ops_t *pen_ops;
@@ -127,6 +128,20 @@ static void save_current_file(void)
 static void save_as(const char *file)
 {
     d("%s", file);
+    v_format_t format = get_format(current_path);
+    v_draw_ops_t *ops = get_ops(format);
+    v_annots_t *annots = NULL;
+
+    ERR_RET(!ops, "pdf ops error");
+    ERR_RET(!view_ops, "no canvas");
+
+    annots = view_ops->annots();
+    ops->save(file, annots);
+
+error_return:
+    if (annots)
+        free(annots);
+    return;
 }
 
 static void on_page_changed(uint16_t page)
