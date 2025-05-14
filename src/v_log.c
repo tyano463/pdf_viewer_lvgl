@@ -25,7 +25,7 @@ char *get_time_str(void)
     struct timeval tv;
     gettimeofday(&tv, NULL);
 
-    struct tm *tm = localtime(&tv.tv_sec);
+    const struct tm *tm = localtime(&tv.tv_sec);
     ERR_RETn(!tm);
 
     snprintf(time_str, sizeof(time_str),
@@ -85,8 +85,6 @@ static v_status_t log_rotate(void)
     char *old, *path;
 
     ERR_RETn(!need_rotation());
-
-    status = ST_LOG_ROTATE_FAILED;
 
     fclose(log_fp);
     log_fp = NULL;

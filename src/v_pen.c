@@ -22,7 +22,7 @@ static void hide_sample(void);
 static lv_obj_t *pen_button;
 static lv_obj_t *book_button;
 static lv_obj_t *select_button;
-static v_pen_ops_t ops;
+static v_pen_ops_t g_ops;
 static v_pen_cb_ops_t *cbs;
 static v_stroke_t *active;
 static lv_obj_t *width_slider;
@@ -81,6 +81,7 @@ static void v_pen_draw(int32_t x, int32_t y, uint8_t pressure, v_pen_draw_mode_t
     if (mode == V_PEN_DRAW_START)
     {
         active = malloc(sizeof(v_stroke_t));
+        ERR_RET(!active, "malloc");
         active->num = 1;
         active->max = COORD_CHUNK_NUM;
         active->points = malloc(sizeof(v_point_t) * COORD_CHUNK_NUM);
@@ -92,7 +93,9 @@ static void v_pen_draw(int32_t x, int32_t y, uint8_t pressure, v_pen_draw_mode_t
     {
         if (!(active->num % COORD_CHUNK_NUM))
         {
-            active->points = realloc(active->points, sizeof(v_point_t) * active->max + COORD_CHUNK_NUM);
+            void *tmp = realloc(active->points, sizeof(v_point_t) * active->max + COORD_CHUNK_NUM);
+            ERR_RET(!tmp, "realloc");
+            active->points = tmp;
             active->max += COORD_CHUNK_NUM;
         }
         active->points[active->num].x = x;
@@ -102,6 +105,7 @@ static void v_pen_draw(int32_t x, int32_t y, uint8_t pressure, v_pen_draw_mode_t
         if (mode == V_PEN_DRAW_END)
         {
             v_annot_t *annot = malloc(sizeof(v_annot_t));
+            ERR_RET(!annot, "malloc");
             annot->kind = V_ANNOT_INKLIST;
             annot->data.inklist.num = 1;
             annot->data.inklist.coord_type = V_ANNOT_COORD_NEW;
@@ -114,6 +118,8 @@ static void v_pen_draw(int32_t x, int32_t y, uint8_t pressure, v_pen_draw_mode_t
             ops->add_annot(annot);
         }
     }
+error_return:
+    return;
 }
 
 static void v_pen_select(float x, float y, v_pen_draw_mode_t mode)
@@ -143,11 +149,11 @@ static void v_pen_select(float x, float y, v_pen_draw_mode_t mode)
     }
 }
 
-v_status_t v_pen_init(lv_obj_t *parent, v_pen_cb_ops_t *_cbs)
+static v_status_t v_pen_init(lv_obj_t *parent, v_pen_cb_ops_t *_cbs)
 {
-    lv_img_dsc_t *pen_icon;
-    lv_img_dsc_t *book_icon;
-    lv_img_dsc_t *select_icon;
+    const lv_img_dsc_t *pen_icon;
+    const lv_img_dsc_t *book_icon;
+    const lv_img_dsc_t *select_icon;
     pen_button = lv_image_create(parent);
     book_button = lv_image_create(parent);
     select_button = lv_image_create(parent);
@@ -305,16 +311,16 @@ static v_pen_t *last_pen(void)
         .size = 3,
     };
     v_settings_ops_t *ops = v_get_settings_ops();
-    ERR_RETn(!ops);
+    if (ops)
+        pen = ops->get_pen();
 
-    pen = ops->get_pen();
-
-error_return:
     if (!pen)
     {
         pen = malloc(sizeof(v_pen_t));
+        ERR_RET(!pen, "malloc");
         memcpy(pen, &_pen, sizeof(v_pen_t));
     }
+error_return:
     return pen;
 }
 static void show_sample(lv_area_t *p)
@@ -322,7 +328,7 @@ static void show_sample(lv_area_t *p)
     if (sample)
     {
         set_visibility(sample, true);
-        return;
+        goto error_return;
     }
 
     int16_t w, h;
@@ -336,11 +342,14 @@ static void show_sample(lv_area_t *p)
     lv_obj_set_pos(sample, p->x1, p->y1);
     lv_obj_set_size(sample, w, h);
     lv_draw_buf_t *buf = malloc(sizeof(lv_draw_buf_t) + w * h * 4);
+    ERR_RET(!buf, "malloc");
     lv_draw_buf_init(buf, w, h, LV_COLOR_FORMAT_ARGB8888, w * 4, (void *)&buf[1], w * h * 4);
     memset(buf->data, 128, w * h * 4);
     lv_canvas_set_draw_buf(sample, buf);
 
     update_sample();
+error_return:
+    return;
 }
 
 static void show_pen_icon(void)
@@ -383,19 +392,19 @@ static void _show_pen_icon(void)
 }
 static void init_ops(void)
 {
-    if (!ops.init)
+    if (!g_ops.init)
     {
-        ops.init = v_pen_init;
-        ops.draw = v_pen_draw;
-        ops.select = v_pen_select;
-        ops.show_icon = _show_pen_icon;
-        ops.hide_icon = _hide_pen_icon;
+        g_ops.init = v_pen_init;
+        g_ops.draw = v_pen_draw;
+        g_ops.select = v_pen_select;
+        g_ops.show_icon = _show_pen_icon;
+        g_ops.hide_icon = _hide_pen_icon;
     }
 }
 v_pen_ops_t *v_pen_getops(void)
 {
     init_ops();
-    return &ops;
+    return &g_ops;
 }
 
 cJSON *pen_to_json(v_pen_t *pen)

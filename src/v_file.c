@@ -23,12 +23,12 @@ static void file_explorer_event_handler(lv_event_t *e)
     if (code == LV_EVENT_VALUE_CHANGED)
     {
         d("code: %s(%d)", lv_event_code_get_name(code), code);
-        const char *p;
         const char *cur_path = lv_file_explorer_get_current_path(obj);
         const char *sel_fn = lv_file_explorer_get_selected_file_name(obj);
         LV_LOG_USER("%s%s", cur_path, sel_fn);
         if (_file.callback)
         {
+            const char *p;
             if (cur_path[0] == LV_FS_DEFAULT_DRIVER_LETTER && cur_path[1] == ':')
             {
                 p = &cur_path[2];
@@ -62,7 +62,7 @@ static void save_as(lv_event_t *e)
     do_hide_filer(g_mode);
     _file.callback(text);
 }
-static void close_btn_event_cb(lv_event_t *e)
+static void close_btn_event_cb(const lv_event_t *e)
 {
     do_hide_filer(g_mode);
 }
@@ -78,7 +78,8 @@ static lv_obj_t *get_base(void)
     lv_obj_set_flex_flow(b, LV_FLEX_FLOW_COLUMN);
     return b;
 }
-void open_file_dialog(void)
+
+static void open_file_dialog(void)
 {
     base = get_base();
 
@@ -144,7 +145,7 @@ void open_file_dialog(void)
     lv_obj_add_flag(close_btn, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_size(close_btn, 64, 64);
     lv_obj_set_align(close_btn, LV_ALIGN_TOP_RIGHT);
-    lv_obj_add_event_cb(close_btn, close_btn_event_cb, LV_EVENT_SINGLE_CLICKED, NULL);
+    lv_obj_add_event_cb(close_btn, (lv_event_cb_t)close_btn_event_cb, LV_EVENT_SINGLE_CLICKED, NULL);
 
     lv_obj_add_event_cb(file_explorer, file_explorer_event_handler, LV_EVENT_ALL, NULL);
 }

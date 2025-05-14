@@ -12,10 +12,10 @@
 extern unsigned char assets_hamburger_bmp[];
 
 static cJSON *load_menu_settings(void);
-static void create_menu(lv_obj_t *parent, cJSON *json);
+static void create_menu(lv_obj_t *parent, cJSON *menu_json);
 static void hide_menu(void);
 static void show_menu(void);
-static void set_page(int16_t page, int16_t page_max);
+static void set_page(int16_t _page, int16_t page_max);
 static int16_t get_page(void);
 
 static v_menu_t *_menu;
@@ -145,25 +145,22 @@ static void update_show_mode_button(void)
         basecolor.red = 165;
         basecolor.green = 245;
         basecolor.blue = 159;
-        basecolor.alpha = 255;
     }
     else if (g_show_mode == V_SHOW_MODE_ANNOT_NO_MENU)
     {
         basecolor.red = 240;
         basecolor.green = 235;
         basecolor.blue = 197;
-        basecolor.alpha = 255;
     }
     else if (g_show_mode == V_SHOW_MODE_SCORE_ONLY)
     {
         basecolor.red = 219;
         basecolor.green = 219;
         basecolor.blue = 213;
-        basecolor.alpha = 255;
     }
     float cx = SHOW_MODE_ICON_SIZE / 2.0f;
-    float cy = SHOW_MODE_ICON_SIZE / 2.0f;
-    float radius = SHOW_MODE_ICON_SIZE / 2.0f;
+    float cy = cx;
+    float radius = cx;
     for (int i = 0; i < SHOW_MODE_ICON_SIZE; i++)
     {
         for (int j = 0; j < SHOW_MODE_ICON_SIZE; j++)
@@ -218,8 +215,8 @@ static void page_move(lv_event_t *e)
 static void page_button(lv_obj_t *parent)
 {
 
-    lv_image_dsc_t *prev_image = get_icon_dsc("prev_page");
-    lv_image_dsc_t *next_image = get_icon_dsc("next_page");
+    const lv_image_dsc_t *prev_image = get_icon_dsc("prev_page");
+    const lv_image_dsc_t *next_image = get_icon_dsc("next_page");
     page_control = lv_obj_create(parent);
     lv_obj_remove_style_all(page_control);
     lv_obj_set_flex_flow(page_control, LV_FLEX_FLOW_COLUMN);

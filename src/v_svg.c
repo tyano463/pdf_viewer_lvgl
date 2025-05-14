@@ -7,7 +7,7 @@ static v_status_t v_svg_init(void);
 static void v_svg_free(void);
 static v_status_t v_svg_open(const char *file);
 static int v_svg_pagenum(void);
-static v_status_t v_svg_pixel(uint8_t *data, int page, int rowstride, v_scale_t ctm);
+static v_status_t v_svg_pixel(uint8_t *_data, int page, int rowstride, v_scale_t ctm);
 static v_status_t v_svg_size(int *width, int *height);
 
 static v_draw_ops_t g_ops;
@@ -120,7 +120,7 @@ static v_status_t v_svg_pixel(uint8_t *_data, int page, int rowstride, v_scale_t
     case CAIRO_FORMAT_RGBA128F:
         for (int i = 0; i < h; i++)
         {
-            float *s = (float *)&data[stride * i];
+            float *s = (float *)(intptr_t)&data[stride * i];
             for (int j = 0; j < w; j++)
             {
                 uint8_t *p = &_data[i * w * 4 + j * 4];

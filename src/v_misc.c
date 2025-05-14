@@ -28,11 +28,11 @@ enum
 static bool inode_exists(const char *path, misc_filetype_t t);
 static char b2c(const uint8_t b)
 {
-    if (0 <= b && b <= 9)
+    if (b <= 9)
     {
         return b + '0';
     }
-    else if (0xa <= b && b <= 0xf)
+    else if (b <= 0xf)
     {
         return b + 'a' - 0xa;
     }
@@ -45,7 +45,6 @@ static char b2c(const uint8_t b)
 static char debug_str[MAX_PATH];
 void dump(const uint8_t *data, size_t size)
 {
-    char upper, lower;
     bool last_lf;
     char *p = debug_str;
 
@@ -56,8 +55,8 @@ void dump(const uint8_t *data, size_t size)
         {
             p += sprintf(p, "%04x: ", i);
         }
-        upper = (char)((data[i] & 0xf0) >> 4);
-        lower = (char)((data[i] & 0x0f) >> 0);
+        char upper = (char)((data[i] & 0xf0) >> 4);
+        char lower = (char)((data[i] & 0x0f) >> 0);
         p += sprintf(p, "%c%c", b2c(upper), b2c(lower));
         if ((i % 16) == 15)
         {
@@ -125,22 +124,26 @@ int mkdir_p(const char *path, mode_t mode)
 
 bool ends_with_ignore_case(const char *str, const char *suffix)
 {
+    bool ret = false;
+    ERR_RETn(!str || !suffix);
     size_t len_str = strlen(str);
     size_t len_suffix = strlen(suffix);
-    if (len_str < len_suffix)
-        return 0;
+    ERR_RETn(len_str < len_suffix);
 
     const char *str_ext = str + len_str - len_suffix;
+    ret = true;
     while (*str_ext && *suffix)
     {
         if (tolower((unsigned char)*str_ext) != *suffix)
         {
-            return false;
+            ret = false;
+            break;
         }
         str_ext++;
         suffix++;
     }
-    return true;
+error_return:
+    return ret;
 }
 
 bool file_exists(const char *path)
@@ -165,17 +168,17 @@ char *execute_command(const char *command, ...)
 
     va_end(ap);
 
-    FILE *pipe = popen(cmd, "r");
-    if (!pipe)
+    FILE *cmd_fp = popen(cmd, "r");
+    if (!cmd_fp)
     {
         perror("popen failed");
         return NULL;
     }
 
-    while (fgets(result, sizeof(result), pipe))
+    while (fgets(result, sizeof(result), cmd_fp))
         ;
 
-    int status = pclose(pipe);
+    int status = pclose(cmd_fp);
     if (status == -1)
     {
         perror("pclose failed");
@@ -306,16 +309,14 @@ error_return:
     return ret;
 }
 
-char *b2s(uint8_t *data, uint32_t len)
+char *b2s(const uint8_t *data, uint32_t len)
 {
-    uint8_t upper;
-    uint8_t lower;
     char *p = debug_str;
 
     for (uint32_t i = 0; i < len; i++)
     {
-        upper = (data[i] & 0xf0) >> 4;
-        lower = (data[i] & 0x0f) >> 0;
+        uint8_t upper = (data[i] & 0xf0) >> 4;
+        uint8_t lower = (data[i] & 0x0f) >> 0;
 
         *p++ = b2c(upper);
         *p++ = b2c(lower);
@@ -342,9 +343,10 @@ int64_t npow(int64_t a, int64_t n)
 
 static char *split_ext(char *base_name)
 {
+    char *ext = NULL;
+    ERR_RETn(!base_name);
     int len = 0;
     len = strlen(base_name);
-    char *ext = NULL;
     for (int i = len - 1; i >= 0; i--)
     {
         if (base_name[i] == '.')
@@ -353,6 +355,8 @@ static char *split_ext(char *base_name)
             ext = &base_name[i + 1];
         }
     }
+
+error_return:
     return ext;
 }
 
@@ -371,26 +375,26 @@ static bool same_ext(const char *path, const char *ext)
 
 static int compare_str(const void *aa, const void *bb)
 {
-    char *a = *(char **)aa;
-    char *b = *(char **)bb;
+    const char *a = *(const char **)aa;
+    const char *b = *(const char **)bb;
     return strcmp(a, b);
 }
 
-bool rename_ext(char *path, const char *new_ext)
+bool rename_ext(const char *path, const char *new_ext)
 {
-    char *dot = strrchr(path, '.');
-    if (!dot || dot == path)
-    {
-        return false;
-    }
+    bool ret = false;
+    ERR_RETn(!path || !new_ext);
 
-    if (strlen(dot + 1) != strlen(new_ext))
-    {
-        return false;
-    }
+    char *dot = strrchr(path, '.');
+
+    ERR_RETn(!dot || dot == path);
+
+    ERR_RETn(strlen(dot + 1) != strlen(new_ext));
 
     strcpy(dot + 1, new_ext);
-    return true;
+    ret = true;
+error_return:
+    return ret;
 }
 
 char **list_sequence_files(char *file)
@@ -403,6 +407,7 @@ char **list_sequence_files(char *file)
     char **paths;
 
     base_name = strdup(basename(file));
+    ERR_RET(!base_name, "strdup");
     dir_path = dirname(file);
     ext = split_ext(base_name);
 
@@ -420,6 +425,7 @@ char **list_sequence_files(char *file)
     ERR_RETn(!count);
 
     paths = malloc(sizeof(char *) * (count + 1) + MAX_PATH * count);
+    ERR_RET(!paths, "malloc");
     int i;
     for (i = 0; i < count; i++)
     {

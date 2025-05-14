@@ -99,7 +99,6 @@ typedef struct str_v_viewer_ops
 {
     v_status_t (*init)(lv_obj_t *parent);
     void (*add_annot)(v_annot_t *annot);
-    void (*show_frame)(v_annot_t *annot);
     void (*remove_annot)(v_annot_t *annot);
     void (*set_mode)(v_show_mode_t mode);
     v_status_t (*show_image)(v_image_t *image);
@@ -108,7 +107,7 @@ typedef struct str_v_viewer_ops
     void (*hide_annot)(void);
     void (*queue)(v_draw_event_t *ev);
     void (*select)(lv_point_t *);
-    void (*move)(lv_point_t *, lv_point_t *);
+    void (*move)(const lv_point_t *, const lv_point_t *);
     v_annots_t *(*annots)(void);
     void (*matrix)(v_matrix_t *m);
 } v_viewer_ops_t;

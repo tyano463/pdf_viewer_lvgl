@@ -9,7 +9,7 @@ static v_status_t v_png_init(void);
 static v_status_t v_png_open(const char *path);
 static v_status_t v_jpeg_open(const char *path);
 static int v_png_page(void);
-static v_status_t v_png_get_pixel(uint8_t *data, int page, int rowstride, v_scale_t ctm);
+static v_status_t v_png_get_pixel(uint8_t *_data, int page, int rowstride, v_scale_t ctm);
 static v_status_t v_png_get_size(int *width, int *height);
 
 static v_draw_ops_t g_ops;
@@ -70,7 +70,7 @@ static v_status_t v_jpeg_open(const char *path)
     struct jpeg_error_mgr jerr;
 
     FILE *infile = fopen(path, "rb");
-    ERR_RET (!infile, "fopen");
+    ERR_RET(!infile, "fopen");
 
     cinfo.err = jpeg_std_error(&jerr);
     jpeg_create_decompress(&cinfo);
@@ -98,7 +98,7 @@ static v_status_t v_jpeg_open(const char *path)
     {
         for (int x = 0; x < width; x++)
         {
-            uint8_t *src_pixel = &buffer[(y * width + x) * 3];
+            const uint8_t *src_pixel = &buffer[(y * width + x) * 3];
             uint8_t *dst_pixel = &argb_data[(y * width + x) * 4];
             dst_pixel[0] = src_pixel[2]; // Blue
             dst_pixel[1] = src_pixel[1]; // Green
@@ -177,7 +177,7 @@ static v_status_t v_png_get_pixel(uint8_t *_data, int page, int rowstride, v_sca
     case CAIRO_FORMAT_RGBA128F:
         for (int i = 0; i < h; i++)
         {
-            float *s = (float *)&data[stride * i];
+            float *s = (float *)(intptr_t)&data[stride * i];
             for (int j = 0; j < w; j++)
             {
                 uint8_t *p = &_data[i * w * 4 + j * 4];

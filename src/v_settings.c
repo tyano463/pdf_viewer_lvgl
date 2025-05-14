@@ -176,7 +176,7 @@ static v_status_t parse_settings_json(const char *const data)
     v_pen_t *pen = json_to_pen(pen_json);
     ERR_RET(!pen, "pen");
 
-    memcpy(&p->last_pen, pen, sizeof(sizeof(p->last_pen)));
+    memcpy(&p->last_pen, pen, sizeof(p->last_pen));
     status = ST_SUCCESS;
 
 error_return:

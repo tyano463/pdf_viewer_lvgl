@@ -32,7 +32,7 @@ static v_status_t show_page(v_format_t format, const char *path, uint16_t page);
 static void ext_command_func_init(void);
 static v_draw_ops_t *get_ops(v_format_t format);
 
-static void (*ext_command_func[V_EXT_COMMAND_MAX])(v_ext_command_t *);
+static void (*ext_command_func[V_EXT_COMMAND_MAX])(const v_ext_command_t *);
 static lv_display_t *disp;
 static v_pen_cb_ops_t pen_cbs;
 static v_pen_ops_t *pen_ops;
@@ -88,7 +88,11 @@ int main(int argc, char **argv)
     status = pen_ops->init(scr, &pen_cbs);
     d("pen init %d", status);
 
-    path = strdup(settings->get_path());
+    const char *tmp = settings->get_path();
+    if (!tmp || !tmp[0])
+        goto no_default;
+    path = strdup(tmp);
+    ERR_RET(!path, "");
     page = settings->get_page();
     current_path = path;
 
@@ -97,6 +101,7 @@ int main(int argc, char **argv)
     status = show_page(format, path, page);
     ERR_RETn(status != ST_SUCCESS);
 
+no_default:
     status = v_init_external_receiver();
     if (status == ST_SUCCESS)
     {
@@ -385,7 +390,7 @@ static v_format_t get_format(const char *path)
     return V_FORMAT_MAX;
 }
 
-static void ext_on_page_changed(v_ext_command_t *command)
+static void ext_on_page_changed(const v_ext_command_t *command)
 {
     int16_t page = menu_ops->get_page();
     if (command->command == V_EXT_PAGE_PREV)

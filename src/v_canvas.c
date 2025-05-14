@@ -12,7 +12,6 @@ static void *draw_main(void *);
 static void init_ops(void);
 static void v_add_annot(v_annot_t *annot);
 static void v_remove_annot(v_annot_t *annot);
-static void v_show_frame(v_annot_t *annot);
 static void v_set_show_mode(v_show_mode_t mode);
 static v_status_t v_init_canvas(lv_obj_t *parent);
 static v_status_t v_show_image(v_image_t *im);
@@ -21,7 +20,7 @@ static void v_show_annot(void);
 static void v_hide_annot(void);
 static void v_queue(v_draw_event_t *ev);
 static void v_select(lv_point_t *pos);
-static void v_move(lv_point_t *from, lv_point_t *to);
+static void v_move(const lv_point_t *from, const lv_point_t *to);
 static void on_remove_pressed(lv_event_t *);
 static void on_resize_dragged(lv_event_t *);
 static void show_annot_control(v_annot_t *a);
@@ -36,13 +35,13 @@ extern lv_font_t source_hans_24;
 
 lv_obj_t *canvas;
 
-LV_DRAW_BUF_DEFINE_STATIC(canvas_buf, WIDTH, HEIGHT, LV_COLOR_FORMAT_ARGB8888);
+static lv_draw_buf_t *canvas_buf;
 static pthread_t *th;
 static pthread_mutex_t *mutex;
 static bool running;
 static v_show_mode_t g_mode;
 
-static lv_img_dsc_t *dsc;
+static lv_img_dsc_t *g_dsc;
 static lv_obj_t *image;
 
 static v_annot_control_t _annot_control;
@@ -57,7 +56,7 @@ static struct tq_head *head;
 TAILQ_HEAD(an_head, str_v_annot)
 _ahead;
 static struct an_head *an_head;
-static void (*draw_func[V_DRAW_KIND_MAX])(v_draw_event_t *event);
+static void (*draw_func[V_DRAW_KIND_MAX])(const v_draw_event_t *event);
 
 static void init_ops(void)
 {
@@ -67,7 +66,6 @@ static void init_ops(void)
         ops.show_image = v_show_image;
         ops.set_touch_callback = v_set_touch_callback;
         ops.set_mode = v_set_show_mode;
-        ops.show_frame = v_show_frame;
         ops.add_annot = v_add_annot;
         ops.remove_annot = v_remove_annot;
         ops.show_annot = v_show_annot;
@@ -119,6 +117,7 @@ static void v_add_freetext(v_annot_t *annot)
     lv_canvas_init_layer(a, &l);
 
     lv_draw_label_dsc_t *dsc = calloc(sizeof(lv_draw_label_dsc_t), 1);
+    ERR_RET(!dsc, "calloc error");
     lv_draw_label_dsc_init(dsc);
     dsc->color.red = t->color.c.red;
     dsc->color.green = t->color.c.green;
@@ -139,6 +138,8 @@ static void v_add_freetext(v_annot_t *annot)
     lv_draw_label(&l, dsc, &coord);
     d("%s %d,%d,%d,%d", dsc->text, coord.x1, coord.y1, coord.x2, coord.y2);
     lv_canvas_finish_layer(a, &l);
+error_return:
+    return;
 }
 
 static void v_get_matrix(v_matrix_t *m)
@@ -306,9 +307,6 @@ static void v_remove_annot(v_annot_t *annot)
     lv_obj_delete(annot->pdf_annot_obj);
 }
 
-static void v_show_frame(v_annot_t *annot)
-{
-}
 static void v_set_show_mode(v_show_mode_t mode)
 {
     g_mode = mode;
@@ -327,19 +325,28 @@ static void v_queue(v_draw_event_t *ev)
     pthread_mutex_unlock(mutex);
 }
 
-static void draw_annot(v_draw_event_t *e) {}
-static void draw_erase(v_draw_event_t *e) {}
-static void show_all(v_draw_event_t *e)
+static void draw_annot(const v_draw_event_t *e)
 {
+    d("");
+}
+static void draw_erase(const v_draw_event_t *e)
+{
+    d("");
+}
+static void show_all(const v_draw_event_t *e)
+{
+    d("");
     v_set_annot_visibility(false);
 }
-static void hide_all(v_draw_event_t *e)
+static void hide_all(const v_draw_event_t *e)
 {
-
+    d("");
     v_set_annot_visibility(true);
 }
-static void draw_user(v_draw_event_t *e)
+
+static void draw_user(const v_draw_event_t *e)
 {
+    d("");
     ERR_RETn(!e || !e->arg);
     ERR_RETn(!e->user_callback);
     e->user_callback(e->arg);
@@ -378,8 +385,8 @@ static void annot_control_init(void)
     annot_control->annot = NULL;
     annot_control->remove_button = lv_image_create(canvas);
     annot_control->resize_button = lv_image_create(canvas);
-    lv_image_dsc_t *eraser_img = get_icon_dsc("eraser");
-    lv_image_dsc_t *resize_img = get_icon_dsc("resize");
+    const lv_image_dsc_t *eraser_img = get_icon_dsc("eraser");
+    const lv_image_dsc_t *resize_img = get_icon_dsc("resize");
 
     lv_image_set_src(annot_control->remove_button, eraser_img);
     lv_image_set_src(annot_control->resize_button, resize_img);
@@ -397,9 +404,9 @@ static v_status_t v_init_canvas(lv_obj_t *parent)
 
     status = ST_CREATE_CANVAS_FAILED;
 
-    dsc = lv_malloc(sizeof(lv_img_dsc_t));
-    ERR_RET(!dsc, "malloc");
-    memset(dsc, 0, sizeof(lv_img_dsc_t));
+    g_dsc = lv_malloc(sizeof(lv_img_dsc_t));
+    ERR_RET(!g_dsc, "malloc");
+    memset(g_dsc, 0, sizeof(lv_img_dsc_t));
     image = lv_img_create(parent);
     ERR_RET(!image, "lv_img_create");
 
@@ -408,9 +415,12 @@ static v_status_t v_init_canvas(lv_obj_t *parent)
     canvas = lv_canvas_create(parent);
     ERR_RET(!canvas, "lv_canvas_create");
 
-    LV_DRAW_BUF_INIT_STATIC(canvas_buf);
+    canvas_buf = malloc(sizeof(lv_draw_buf_t) + WIDTH * HEIGHT * 4);
+    ERR_RET(!canvas_buf, "malloc");
+    lv_draw_buf_init(canvas_buf, WIDTH, HEIGHT, LV_COLOR_FORMAT_ARGB8888, WIDTH * 4, &canvas_buf[1], WIDTH * HEIGHT * 4);
+    lv_draw_buf_set_flag(canvas_buf, LV_IMAGE_FLAGS_MODIFIABLE);
 
-    lv_canvas_set_draw_buf(canvas, &canvas_buf);
+    lv_canvas_set_draw_buf(canvas, canvas_buf);
     lv_canvas_fill_bg(canvas, lv_color_hex3(0xccc), LV_OPA_TRANSP);
     lv_obj_center(canvas);
 
@@ -473,9 +483,9 @@ static v_status_t v_show_image(v_image_t *im)
 {
     //    int w, h;
     //    float scale, scale_x, scale_y;
-    if (dsc->data)
+    if (g_dsc->data)
     {
-        lv_free((uint8_t *)dsc->data);
+        lv_free((uint8_t *)g_dsc->data);
     }
     reset_annotation();
 
@@ -486,13 +496,13 @@ static v_status_t v_show_image(v_image_t *im)
 
     g_scale = scale;
 
-    dsc->data = data;
-    dsc->header.cf = LV_COLOR_FORMAT_ARGB8888;
-    dsc->header.w = w;
-    dsc->header.h = h;
-    dsc->header.magic = LV_IMAGE_HEADER_MAGIC;
-    dsc->data_size = w * h * 4;
-    lv_img_set_src(image, dsc);
+    g_dsc->data = data;
+    g_dsc->header.cf = LV_COLOR_FORMAT_ARGB8888;
+    g_dsc->header.w = w;
+    g_dsc->header.h = h;
+    g_dsc->header.magic = LV_IMAGE_HEADER_MAGIC;
+    g_dsc->data_size = w * h * 4;
+    lv_img_set_src(image, g_dsc);
     return ST_SUCCESS;
 }
 
@@ -587,7 +597,7 @@ static void v_select(lv_point_t *pos)
 error_return:
     return;
 }
-static void set_move_matrix(v_matrix_t *m, lv_point_t *from, lv_point_t *to)
+static void set_move_matrix(v_matrix_t *m, const lv_point_t *from, const lv_point_t *to)
 {
     float dx = (float)(to->x - from->x);
     float dy = (float)(to->y - from->y);
@@ -601,7 +611,7 @@ static void set_move_matrix(v_matrix_t *m, lv_point_t *from, lv_point_t *to)
     m->elm[1][2] = dy;   // f
 }
 
-static void v_move(lv_point_t *from, lv_point_t *to)
+static void v_move(const lv_point_t *from, const lv_point_t *to)
 {
     v_annot_t *a = annot_control->annot;
     v_remove_annot(a);
@@ -651,7 +661,7 @@ static void on_remove_pressed(lv_event_t *ev)
     show_modal_dialog(lv_screen_active(), "Delete this item ?", remove_callback);
 }
 
-static void set_scale_matrix(v_matrix_t *m, lv_point_precise_t *center, float scale)
+static void set_scale_matrix(v_matrix_t *m, const lv_point_precise_t *center, float scale)
 {
     m->elm[0][0] = scale;
     m->elm[0][1] = 0.0f;

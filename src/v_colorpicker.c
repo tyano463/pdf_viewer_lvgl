@@ -37,7 +37,7 @@ error_return:
     return;
 }
 
-static void rgb_to_hsv(float *h, float *s, float *v, lv_color_t *rgb)
+static void rgb_to_hsv(float *h, float *s, float *v, const lv_color_t *rgb)
 {
     float r = rgb->red / 255.0f;
     float g = rgb->green / 255.0f;
@@ -113,10 +113,10 @@ static void change_2d_color(void *arg)
 
             lv_color_t c = hsv_to_rgb(orig_h, sat, val);
 
-            int index = (i * PICKER_WIDTH + j) * 3;
-            picker_buf[index + 2] = c.red;
-            picker_buf[index + 1] = c.green;
-            picker_buf[index + 0] = c.blue;
+            int pixel_offset = (i * PICKER_WIDTH + j) * 3;
+            picker_buf[pixel_offset + 2] = c.red;
+            picker_buf[pixel_offset + 1] = c.green;
+            picker_buf[pixel_offset + 0] = c.blue;
         }
     }
 error_return:
@@ -135,7 +135,7 @@ static void barchanged(void *arg)
         g_callback(argb);
 }
 
-static lv_color_t barpoint2color(lv_point_t *p)
+static lv_color_t barpoint2color(const lv_point_t *p)
 {
     float r, g, b;
     float t = (float)p->x / (BAR_WIDTH - 1);
@@ -192,7 +192,7 @@ static void pickerbar_callback(lv_event_t *e)
     lv_point_t point, rel;
     lv_area_t coord;
 
-    lv_indev_t *indev = lv_indev_active();
+    const lv_indev_t *indev = lv_indev_active();
 
     lv_indev_get_point(indev, &point);
     lv_obj_get_coords(bar, &coord);
@@ -249,7 +249,7 @@ static void picker2d_callback(lv_event_t *e)
 
     lv_point_t point, rel;
     lv_area_t coord;
-    lv_indev_t *indev = lv_indev_active();
+    const lv_indev_t *indev = lv_indev_active();
     lv_indev_get_point(indev, &point);
     lv_obj_get_coords(picker, &coord);
     rel.x = point.x - coord.x1;
@@ -311,10 +311,10 @@ static void create_picker(lv_obj_t *parent, uint16_t left, uint16_t top, lv_colo
 
             lv_color_t c = hsv_to_rgb(orig_h, sat, val);
 
-            int index = (i * PICKER_WIDTH + j) * 3;
-            picker_buf[index + 2] = c.red;
-            picker_buf[index + 1] = c.green;
-            picker_buf[index + 0] = c.blue;
+            int pixel_offset = (i * PICKER_WIDTH + j) * 3;
+            picker_buf[pixel_offset + 2] = c.red;
+            picker_buf[pixel_offset + 1] = c.green;
+            picker_buf[pixel_offset + 0] = c.blue;
         }
     }
     lv_canvas_set_buffer(picker, picker_buf, PICKER_WIDTH, PICKER_HEIGHT, LV_COLOR_FORMAT_RGB888);
@@ -344,8 +344,9 @@ static void create_picker(lv_obj_t *parent, uint16_t left, uint16_t top, lv_colo
 
 static void create_bar(lv_obj_t *parent, uint16_t left, uint16_t top, lv_color32_t bgra)
 {
-    bar = lv_canvas_create(parent);
     bar_buf = malloc(BAR_WIDTH * BAR_HEIGHT * 3);
+    ERR_RET(!bar_buf, "malloc fail");
+    bar = lv_canvas_create(parent);
 
     for (int j = 0; j < BAR_WIDTH; j++)
     {
@@ -416,6 +417,8 @@ static void create_bar(lv_obj_t *parent, uint16_t left, uint16_t top, lv_color32
 
     lv_obj_add_flag(bar, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(bar, pickerbar_callback, LV_EVENT_ALL, NULL);
+error_return:
+    return;
 }
 void v_show_color_picker(color_callback_t _callback, lv_obj_t *parent, int16_t left, int16_t top, lv_color32_t bgra)
 {

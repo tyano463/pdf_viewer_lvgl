@@ -27,28 +27,28 @@ static void v_pdf_save(const char *, v_annots_t *annots);
 
 static v_pdf_t *pdf;
 static fz_pixmap *pix;
-static v_draw_ops_t ops;
+static v_draw_ops_t g_ops;
 static char current_path[MAX_PATH];
 
 static void init_ops(void)
 {
-    ops.init = v_pdf_init;
-    ops.open = v_pdf_open;
-    ops.pagenum = v_pdf_pagecount;
-    ops.size = v_pdf_getsize;
-    ops.pixel = v_pdf_alloc_pixel_data;
-    ops.annots = v_pdf_get_annots;
-    ops.free = v_pdf_release;
-    ops.save = v_pdf_save;
+    g_ops.init = v_pdf_init;
+    g_ops.open = v_pdf_open;
+    g_ops.pagenum = v_pdf_pagecount;
+    g_ops.size = v_pdf_getsize;
+    g_ops.pixel = v_pdf_alloc_pixel_data;
+    g_ops.annots = v_pdf_get_annots;
+    g_ops.free = v_pdf_release;
+    g_ops.save = v_pdf_save;
 }
 
 v_draw_ops_t *v_pdf_get_ops(void)
 {
-    if (!ops.init)
+    if (!g_ops.init)
     {
         v_pdf_init();
     }
-    return &ops;
+    return &g_ops;
 }
 
 static v_status_t v_pdf_init(void)
@@ -221,6 +221,8 @@ static void parse_da(const char *s, v_pdf_da_t *d)
             if (len > 0)
             {
                 char *fontname = (char *)malloc(len + 1);
+                if (!fontname)
+                    return;
                 memcpy(fontname, start, len);
                 fontname[len] = '\0';
                 d->fontname = fontname;
@@ -287,7 +289,7 @@ static void parse_da(const char *s, v_pdf_da_t *d)
 
 static v_annots_t *v_pdf_get_annots(void)
 {
-    int i, n;
+    int n;
     v_annots_t *ret = NULL;
     v_annots_t *annots;
 
@@ -301,12 +303,12 @@ static v_annots_t *v_pdf_get_annots(void)
 
     annots->annot[0].pdf_annot_obj = pdf_first_annot(pdf->ctx, (pdf_page *)pdf->page);
 
-    for (i = 1; i < n; i++)
+    for (int i = 1; i < n; i++)
     {
         annots->annot[i].pdf_annot_obj = pdf_next_annot(pdf->ctx, annots->annot[i - 1].pdf_annot_obj);
     }
 
-    for (i = 0; i < n; i++)
+    for (int i = 0; i < n; i++)
     {
         v_annot_t *a = &annots->annot[i];
         a->matrix = (v_matrix_t){.elm = {{1.0f, 0.0f, 0.0f},
@@ -345,18 +347,18 @@ static v_annots_t *v_pdf_get_annots(void)
             a->data.inklist.coord_type = V_ANNOT_COORD_ORIGINAL;
             a->matrix = (v_matrix_t){.elm = {{1.0f, 0.0f, 0.0f},
                                              {0.0f, -1.0f, pdf->height}}};
-            for (int i = 0; i < pdf_array_len(pdf->ctx, inklist); i++)
+            for (int j = 0; j < pdf_array_len(pdf->ctx, inklist); j++)
             {
-                v_stroke_t *s = &a->data.inklist.strokes[i];
-                pdf_obj *stroke = pdf_array_get(pdf->ctx, inklist, i);
+                v_stroke_t *s = &a->data.inklist.strokes[j];
+                pdf_obj *stroke = pdf_array_get(pdf->ctx, inklist, j);
                 int sn = pdf_array_len(pdf->ctx, stroke);
                 s->max = sn / 2;
                 s->num = sn / 2;
                 s->points = malloc(sizeof(v_point_t) * s->max);
-                for (int j = 0; j < sn / 2; j++)
+                for (int k = 0; k < sn / 2; k++)
                 {
-                    s->points[j].x = pdf_to_real(pdf->ctx, pdf_array_get(pdf->ctx, stroke, j * 2));
-                    s->points[j].y = pdf_to_real(pdf->ctx, pdf_array_get(pdf->ctx, stroke, j * 2 + 1));
+                    s->points[k].x = pdf_to_real(pdf->ctx, pdf_array_get(pdf->ctx, stroke, k * 2));
+                    s->points[k].y = pdf_to_real(pdf->ctx, pdf_array_get(pdf->ctx, stroke, k * 2 + 1));
                 }
             }
         }
@@ -424,7 +426,7 @@ static v_status_t v_pdf_alloc_pixel_data(uint8_t *data, int page, int rowstride,
     fz_matrix ctm;
     fz_colorspace *cs;
 
-    ERR_RET(!pdf | !pdf->ctx | !pdf->page, "pdf not load");
+    ERR_RET(!pdf || !pdf->ctx || !pdf->page, "pdf not load");
 
     ctm = fz_scale(scale.sx, scale.sy);
     cs = fz_device_rgb(pdf->ctx);
@@ -554,6 +556,7 @@ static void annots_to_document(v_annots_t *annots)
             continue;
 
         annot_map_t *entry = malloc(sizeof(annot_map_t));
+        ERR_RET(!entry, "malloc failed");
         entry->key = a->pdf_annot_obj;
         entry->value = a;
         HASH_ADD_PTR(annot_map, key, entry);
@@ -604,7 +607,9 @@ static void annots_to_document(v_annots_t *annots)
         }
         else
         {
-            delete_candidates = realloc(delete_candidates, sizeof(pdf_annot *) * (delete_num + 1));
+            void *tmp = realloc(delete_candidates, sizeof(pdf_annot *) * (delete_num + 1));
+            ERR_RET(!tmp, "realloc");
+            delete_candidates = tmp;
             delete_candidates[delete_num++] = annot;
         }
         annot = pdf_next_annot(pdf->ctx, annot);

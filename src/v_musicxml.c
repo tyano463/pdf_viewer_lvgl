@@ -65,6 +65,7 @@ static char *svg2pdf(char *file)
         .height = h};
 
     output = strdup(file);
+    ERR_RET(!output, "strdup");
     ERR_RET(!rename_ext(output, "pdf"), "rename ext");
 
     cairo_surface_t *surface = cairo_pdf_surface_create(output, w, h);

@@ -11,13 +11,13 @@
 
 static int fd_in;
 
-float distance(lv_point_t *a, lv_point_t *b)
+float distance(const lv_point_t *a, const lv_point_t *b)
 {
     float d2 = (b->x - a->x) * (b->x - a->x) + (b->y - a->y) * (b->y - a->y);
     return sqrtf(d2);
 }
 
-float distancef(lv_point_precise_t *a, lv_point_t *b)
+float distancef(const lv_point_precise_t *a, const lv_point_t *b)
 {
     float d2 = (b->x - a->x) * (b->x - a->x) + (b->y - a->y) * (b->y - a->y);
     return sqrtf(d2);
@@ -39,7 +39,7 @@ error_return:
 
 static void modal_btn_event_cb(lv_event_t *e)
 {
-    lv_obj_t *btn = lv_event_get_target(e);
+    const lv_obj_t *btn = lv_event_get_target(e);
     const char *btn_text = lv_label_get_text(lv_obj_get_child(btn, 0));
     v_message_callback_t callback = lv_event_get_user_data(e);
     bool result;
@@ -110,7 +110,7 @@ void show_modal_dialog(lv_obj_t *parent, const char *title, v_message_callback_t
     lv_obj_add_event_cb(btn_no, modal_btn_event_cb, LV_EVENT_CLICKED, callback);
 }
 
-lv_point_precise_t rect_center(v_rect_t *p, v_matrix_t *m)
+lv_point_precise_t rect_center(const v_rect_t *p, const v_matrix_t *m)
 {
     lv_point_precise_t center = {0.0f, 0.0f};
 
@@ -132,7 +132,7 @@ lv_point_precise_t rect_center(v_rect_t *p, v_matrix_t *m)
     return center;
 }
 
-float scale_factor(v_matrix_t *m)
+float scale_factor(const v_matrix_t *m)
 {
     if (!m)
         return 1.0f;

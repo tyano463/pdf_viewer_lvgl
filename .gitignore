@@ -25,3 +25,8 @@
 
 ## resources
 /assets_*.c
+
+## static analysis
+/*.html
+/*.log
+/cpp_check_report.txt

@@ -5,7 +5,7 @@ static void set_slider_visibility(lv_obj_t *slider, bool vis);
 
 static void slider_event_cb(lv_event_t *e)
 {
-    lv_obj_t *slider = lv_event_get_target_obj(e);
+    const lv_obj_t *slider = lv_event_get_target_obj(e);
     v_slider_callback_t callback = (v_slider_callback_t)lv_event_get_user_data(e);
     ERR_RETn(!slider);
     ERR_RETn(!callback);
@@ -18,7 +18,7 @@ error_return:
     return;
 }
 
-lv_obj_t *v_create_slider(v_slider_callback_t callback, lv_obj_t *parent, lv_area_t *rect, v_slider_param_t *param)
+lv_obj_t *v_create_slider(v_slider_callback_t callback, lv_obj_t *parent, const lv_area_t *rect, const v_slider_param_t *param)
 {
     lv_obj_t *slider;
     /*Create a transition*/

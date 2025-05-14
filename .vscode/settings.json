@@ -55,7 +55,10 @@
         "istream": "c",
         "numeric": "c",
         "sstream": "c",
-        "uthash.h": "c"
+        "uthash.h": "c",
+        "algorithm": "c",
+        "iterator": "c",
+        "memory": "c"
     },
     "C_Cpp.errorSquiggles": "disabled",
     "[jsonc]": {

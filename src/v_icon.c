@@ -97,8 +97,8 @@ error_return:
 
 uint8_t *load_bmp_data(uint8_t *bmp, uint8_t *w, uint8_t *h)
 {
-    BITMAPFILEHEADER *bmpfile;
-    BITMAPINFOHEADER *bmpinfo;
+    const BITMAPFILEHEADER *bmpfile;
+    const BITMAPINFOHEADER *bmpinfo;
     uint8_t *data = NULL;
 
     bmpfile = (BITMAPFILEHEADER *)bmp;
@@ -126,7 +126,7 @@ error_return:
     return data;
 }
 
-void to_bmp(const char *path, uint8_t *data, uint16_t width, uint16_t height)
+void to_bmp(const char *path, const uint8_t *data, uint16_t width, uint16_t height)
 {
     BITMAPFILEHEADER file_header;
     BITMAPINFOHEADER info_header;
@@ -193,7 +193,6 @@ lv_image_dsc_t *get_icon_dsc(const char *name)
     uint8_t *asset = get_asset_ptr(name);
     d("asset:%p", asset);
     dsc->data = load_bmp_data(asset, &w, &h);
-    dsc->data_size = w * h * 4;
 
     dsc->header.magic = LV_IMAGE_HEADER_MAGIC;
     dsc->data_size = w * h * 4;
