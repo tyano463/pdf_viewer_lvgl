@@ -5,6 +5,7 @@
 #include <librsvg/rsvg.h>
 
 #include "v_misc.h"
+#include "v_core.h"
 #include "v_musicxml.h"
 #include "v_pdf.h"
 
@@ -21,6 +22,7 @@ static int v_musicxml_pagenum(void);
 static v_status_t v_musicxml_pixel(uint8_t *data, int page, int rowstride, v_scale_t ctm);
 static v_status_t v_musicxml_size(int *width, int *height);
 static v_annots_t *v_musicxml_annots(void);
+static const char *v_musicxml_path(void);
 
 static v_draw_ops_t g_ops;
 static v_draw_ops_t *pdf_ops;
@@ -44,41 +46,13 @@ static void init_ops(void)
         g_ops.pixel = v_musicxml_pixel;
         g_ops.size = v_musicxml_size;
         g_ops.annots = v_musicxml_annots;
+        g_ops.path = v_musicxml_path;
         pdf_ops = v_pdf_get_ops();
     }
 }
-
-static char *svg2pdf(char *file)
+static const char *v_musicxml_path(void)
 {
-    char *pdf_path = NULL;
-    char *output;
-    GError *error = NULL;
-    RsvgHandle *rsvg_handle = rsvg_handle_new_from_file(file, &error);
-    ERR_RET(!rsvg_handle, "rsvg_handle_new_from_file @ %s", file);
-
-    gdouble w, h;
-    rsvg_handle_get_intrinsic_size_in_pixels(rsvg_handle, &w, &h);
-    RsvgRectangle viewport = {
-        .x = 0.0,
-        .y = 0.0,
-        .width = w,
-        .height = h};
-
-    output = strdup(file);
-    ERR_RET(!output, "strdup");
-    ERR_RET(!rename_ext(output, "pdf"), "rename ext");
-
-    cairo_surface_t *surface = cairo_pdf_surface_create(output, w, h);
-    cairo_t *cr = cairo_create(surface);
-    rsvg_handle_render_document(rsvg_handle, cr, &viewport, &error);
-
-    cairo_destroy(cr);
-    cairo_surface_destroy(surface);
-    g_object_unref(rsvg_handle);
-
-    pdf_path = output;
-error_return:
-    return pdf_path;
+    return pdf_ops->path();
 }
 
 static char *pdf_concat(char **files)

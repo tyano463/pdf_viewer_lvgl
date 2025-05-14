@@ -28,6 +28,7 @@ static v_status_t v_midi_pixel(uint8_t *data, int page, int rowstride, v_scale_t
 static void v_midi_free(void);
 static v_annots_t *v_midi_annots(void);
 static void v_midi_save(const char *path, v_annots_t *);
+static const char *v_midi_path(void);
 
 static v_draw_ops_t g_ops;
 static v_draw_ops_t *pdf_ops;
@@ -192,9 +193,14 @@ static void init_ops(void)
         g_ops.annots = v_midi_annots;
         g_ops.save = v_midi_save;
         g_ops.free = v_midi_free;
+        g_ops.path = v_midi_path;
 
         pdf_ops = v_pdf_get_ops();
     }
+}
+static const char *v_midi_path(void)
+{
+    return pdf_file;
 }
 v_draw_ops_t *v_midi_get_ops(void)
 {
@@ -1205,7 +1211,7 @@ static char *midi2pdf(const char *path)
 {
     int fd = mkstemps(pdf_file, PDF_EXT_LEN);
     close(fd);
-    execute_command(MUSESCORE, path, "-o", pdf_file);
+    execute_command(MUSESCORE, path, "-o", pdf_file, "-f");
     return pdf_file;
 }
 

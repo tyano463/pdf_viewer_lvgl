@@ -4,6 +4,9 @@
 #include <stdio.h>
 #include <jpeglib.h>
 
+#include "v_core.h"
+#include "v_pdf.h"
+
 static void init_ops(void);
 static v_status_t v_png_init(void);
 static v_status_t v_png_open(const char *path);
@@ -11,8 +14,11 @@ static v_status_t v_jpeg_open(const char *path);
 static int v_png_page(void);
 static v_status_t v_png_get_pixel(uint8_t *_data, int page, int rowstride, v_scale_t ctm);
 static v_status_t v_png_get_size(int *width, int *height);
+static const char *v_png_path(void);
 
+extern char g_current_path[MAX_PATH];
 static v_draw_ops_t g_ops;
+static v_draw_ops_t *pdf_ops;
 static cairo_surface_t *surface;
 
 v_draw_ops_t *v_png_get_ops(void)
@@ -41,31 +47,44 @@ static void init_ops(void)
     g_ops.pagenum = v_png_page;
     g_ops.pixel = v_png_get_pixel;
     g_ops.size = v_png_get_size;
+    g_ops.path = v_png_path;
 }
 
+static const char *v_png_path(void)
+{
+    return g_current_path;
+}
 static v_status_t v_png_init(void)
 {
-    return ST_SUCCESS;
+    pdf_ops = v_pdf_get_ops();
+    return pdf_ops->init();
 }
 
 static v_status_t v_png_open(const char *path)
 {
-    if (surface)
-    {
-        cairo_surface_destroy(surface);
-    }
-    surface = cairo_image_surface_create_from_png(path);
-    if (cairo_surface_status(surface) != CAIRO_STATUS_SUCCESS)
-    {
-        surface = NULL;
-        return ST_PNG_OPEN_FAILED;
-    }
-    return ST_SUCCESS;
+    v_status_t status = ST_SUCCESS;
+    ERR_RETn(path == g_current_path || strcmp(g_current_path, path) == 0);
+
+    status = ST_PNG_OPEN_FAILED;
+    char *pdf_path = png2pdf(path);
+    ERR_RET(!pdf_path, "png2pdf");
+
+    status = pdf_ops->open(pdf_path);
+error_return:
+    return status;
 }
 
 static v_status_t v_jpeg_open(const char *path)
 {
-    v_status_t status = ST_JPEG_OPEN_FAILED;
+    v_status_t status = ST_SUCCESS;
+    ERR_RETn(path == g_current_path || strcmp(path, g_current_path) == 0);
+    status = ST_JPEG_OPEN_FAILED;
+    char *pdf_path = jpeg2pdf(path);
+    ERR_RET(!pdf_path, "jpeg2pdf");
+    status = pdf_ops->open(pdf_path);
+error_return:
+    return status;
+#if 0
     struct jpeg_decompress_struct cinfo;
     struct jpeg_error_mgr jerr;
 
@@ -124,11 +143,17 @@ error_return:
     jpeg_destroy_decompress(&cinfo);
     fclose(infile);
     return status;
+#endif
 }
 
-static int v_png_page(void) { return 0; }
+static int v_png_page(void)
+{
+    return pdf_ops->pagenum();
+}
+
 static v_status_t v_png_get_pixel(uint8_t *_data, int page, int rowstride, v_scale_t ctm)
 {
+    return pdf_ops->pixel(_data, page, rowstride, ctm);
     int w, h;
     if (!surface)
         return ST_PNG_OPEN_FAILED;
@@ -214,6 +239,7 @@ static v_status_t v_png_get_pixel(uint8_t *_data, int page, int rowstride, v_sca
 
 static v_status_t v_png_get_size(int *width, int *height)
 {
+    return pdf_ops->size(width, height);
     if (surface)
     {
         *width = cairo_image_surface_get_width(surface);

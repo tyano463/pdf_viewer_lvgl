@@ -24,11 +24,13 @@ static void v_pdf_release_pixel_data(void);
 static v_annots_t *v_pdf_get_annots(void);
 static void v_pdf_release(void);
 static void v_pdf_save(const char *, v_annots_t *annots);
+static const char *v_pdf_path(void);
 
 static v_pdf_t *pdf;
 static fz_pixmap *pix;
 static v_draw_ops_t g_ops;
-static char current_path[MAX_PATH];
+
+extern char g_current_path[MAX_PATH];
 
 static void init_ops(void)
 {
@@ -40,6 +42,12 @@ static void init_ops(void)
     g_ops.annots = v_pdf_get_annots;
     g_ops.free = v_pdf_release;
     g_ops.save = v_pdf_save;
+    g_ops.path = v_pdf_path;
+}
+
+static const char *v_pdf_path(void)
+{
+    return g_current_path;
 }
 
 v_draw_ops_t *v_pdf_get_ops(void)
@@ -105,9 +113,9 @@ error_return:
 static v_status_t v_pdf_open(const char *path)
 {
     v_status_t status = ST_SUCCESS;
-    ERR_RET(strcmp(path, current_path) == 0, "page change only");
+    ERR_RET(path == g_current_path || strcmp(path, g_current_path) == 0, "page change only");
 
-    sprintf(current_path, "%s", path);
+    sprintf(g_current_path, "%s", path);
     fz_try(pdf->ctx)
         pdf->doc = fz_open_document(pdf->ctx, path);
     fz_catch(pdf->ctx)

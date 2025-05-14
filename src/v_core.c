@@ -6,6 +6,14 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <cairo/cairo.h>
+#include <cairo/cairo-pdf.h>
+#include <librsvg/rsvg.h>
+#include <jpeglib.h>
+#include "v_misc.h"
+
+#define A4_WIDTH_PT 595.0
+#define A4_HEIGHT_PT 842.0
 
 #define EVENTFD_PATH "/tmp/ipc_fifo"
 
@@ -222,4 +230,185 @@ bool inverse_matrix(const v_matrix_t *orig, v_matrix_t *inv)
     inv->elm[1][2] = (b * e - a * f) * inv_det;
 
     return true;
+}
+
+char *svg2pdf(const char *file)
+{
+    char *pdf_path = NULL;
+    char *output;
+    GError *error = NULL;
+    RsvgHandle *rsvg_handle = rsvg_handle_new_from_file(file, &error);
+    ERR_RET(!rsvg_handle, "rsvg_handle_new_from_file @ %s", file);
+
+    gdouble w, h;
+    rsvg_handle_get_intrinsic_size_in_pixels(rsvg_handle, &w, &h);
+    RsvgRectangle viewport = {
+        .x = 0.0,
+        .y = 0.0,
+        .width = w,
+        .height = h};
+
+    output = strdup(file);
+    ERR_RET(!output, "strdup");
+    ERR_RET(!rename_ext(output, "pdf"), "rename ext");
+
+    cairo_surface_t *surface = cairo_pdf_surface_create(output, w, h);
+    cairo_t *cr = cairo_create(surface);
+    rsvg_handle_render_document(rsvg_handle, cr, &viewport, &error);
+
+    cairo_destroy(cr);
+    cairo_surface_destroy(surface);
+    g_object_unref(rsvg_handle);
+
+    pdf_path = output;
+error_return:
+    return pdf_path;
+}
+
+char *png2pdf(const char *file)
+{
+    char *ret = NULL;
+    ERR_RET(!file, "png file is null");
+    char *pdf_file = strdup(file);
+    ERR_RET(!pdf_file, "strdup");
+    ERR_RET(!rename_ext(pdf_file, "pdf"), "rename_ext");
+
+    cairo_surface_t *pdf = NULL;
+    cairo_t *cr = NULL;
+    cairo_surface_t *image = NULL;
+
+    image = cairo_image_surface_create_from_png(file);
+    ERR_RET(cairo_surface_status(image) != CAIRO_STATUS_SUCCESS, "load png");
+
+    int img_width = cairo_image_surface_get_width(image);
+    int img_height = cairo_image_surface_get_height(image);
+
+    pdf = cairo_pdf_surface_create(pdf_file, A4_WIDTH_PT, A4_HEIGHT_PT);
+    ERR_RET(cairo_surface_status(pdf) != CAIRO_STATUS_SUCCESS, "create pdf surface");
+
+    cr = cairo_create(pdf);
+    ERR_RET(cairo_status(cr) != CAIRO_STATUS_SUCCESS, "create cairo context");
+
+    double scale_x = A4_WIDTH_PT / img_width;
+    double scale_y = A4_HEIGHT_PT / img_height;
+    double scale = (scale_x < scale_y) ? scale_x : scale_y;
+
+    double dx = (A4_WIDTH_PT - img_width * scale) / 2.0;
+    double dy = (A4_HEIGHT_PT - img_height * scale) / 2.0;
+
+    cairo_translate(cr, dx, dy);
+    cairo_scale(cr, scale, scale);
+    cairo_set_source_surface(cr, image, 0, 0);
+    cairo_paint(cr);
+
+    cairo_show_page(cr);
+
+    ret = pdf_file;
+
+error_return:
+    if (cr)
+        cairo_destroy(cr);
+    if (pdf)
+        cairo_surface_destroy(pdf);
+    if (image)
+        cairo_surface_destroy(image);
+    if (!ret && pdf_file)
+        free(pdf_file);
+    return ret;
+}
+char *jpeg2pdf(const char *file)
+{
+    char *ret = NULL;
+    ERR_RET(!file, "jpeg file is null");
+    char *pdf_file = strdup(file);
+    ERR_RET(!pdf_file, "strdup");
+    ERR_RET(!rename_ext(pdf_file, "pdf"), "rename_ext");
+
+    struct jpeg_decompress_struct cinfo;
+    struct jpeg_error_mgr jerr;
+    FILE *infile = NULL;
+    JSAMPARRAY buffer = NULL;
+    cairo_surface_t *image = NULL, *pdf = NULL;
+    cairo_t *cr = NULL;
+
+    // JPEG デコード準備
+    cinfo.err = jpeg_std_error(&jerr);
+    jpeg_create_decompress(&cinfo);
+
+    infile = fopen(file, "rb");
+    ERR_RET(!infile, "fopen jpeg");
+    jpeg_stdio_src(&cinfo, infile);
+    jpeg_read_header(&cinfo, TRUE);
+    jpeg_start_decompress(&cinfo);
+
+    int width = cinfo.output_width;
+    int height = cinfo.output_height;
+    int row_stride = width * 4; // CairoはRGBA
+
+    uint8_t *raw_data = calloc(height, row_stride);
+    ERR_RET(!raw_data, "calloc");
+
+    buffer = (*cinfo.mem->alloc_sarray)((j_common_ptr)&cinfo, JPOOL_IMAGE, width * cinfo.output_components, 1);
+
+    for (int y = 0; y < height; y++)
+    {
+        jpeg_read_scanlines(&cinfo, buffer, 1);
+        for (int x = 0; x < width; x++)
+        {
+            uint8_t r = buffer[0][x * cinfo.output_components + 0];
+            uint8_t g = buffer[0][x * cinfo.output_components + 1];
+            uint8_t b = buffer[0][x * cinfo.output_components + 2];
+            uint8_t *dst = &raw_data[y * row_stride + x * 4];
+            dst[0] = b;
+            dst[1] = g;
+            dst[2] = r;
+            dst[3] = 255;
+        }
+    }
+
+    jpeg_finish_decompress(&cinfo);
+    jpeg_destroy_decompress(&cinfo);
+    fclose(infile);
+    infile = NULL;
+
+    // Cairo image surface 作成（ARGB32）
+    image = cairo_image_surface_create_for_data(
+        raw_data, CAIRO_FORMAT_RGB24, width, height, row_stride);
+    ERR_RET(cairo_surface_status(image) != CAIRO_STATUS_SUCCESS, "cairo image");
+
+    // PDF surface 作成（A4）
+    pdf = cairo_pdf_surface_create(pdf_file, A4_WIDTH_PT, A4_HEIGHT_PT);
+    ERR_RET(cairo_surface_status(pdf) != CAIRO_STATUS_SUCCESS, "create pdf");
+
+    cr = cairo_create(pdf);
+
+    // スケーリング（A4内に収める）
+    double sx = A4_WIDTH_PT / width;
+    double sy = A4_HEIGHT_PT / height;
+    double scale = sx < sy ? sx : sy;
+    double dx = (A4_WIDTH_PT - width * scale) / 2.0;
+    double dy = (A4_HEIGHT_PT - height * scale) / 2.0;
+
+    cairo_translate(cr, dx, dy);
+    cairo_scale(cr, scale, scale);
+    cairo_set_source_surface(cr, image, 0, 0);
+    cairo_paint(cr);
+    cairo_show_page(cr);
+
+    ret = pdf_file;
+
+error_return:
+    if (cr)
+        cairo_destroy(cr);
+    if (pdf)
+        cairo_surface_destroy(pdf);
+    if (image)
+        cairo_surface_destroy(image);
+    if (raw_data)
+        free(raw_data);
+    if (infile)
+        fclose(infile);
+    if (!ret && pdf_file)
+        free(pdf_file);
+    return ret;
 }

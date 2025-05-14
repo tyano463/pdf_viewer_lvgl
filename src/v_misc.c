@@ -389,7 +389,7 @@ bool rename_ext(const char *path, const char *new_ext)
 
     ERR_RETn(!dot || dot == path);
 
-    ERR_RETn(strlen(dot + 1) != strlen(new_ext));
+    ERR_RETn(strlen(dot + 1) < strlen(new_ext));
 
     strcpy(dot + 1, new_ext);
     ret = true;

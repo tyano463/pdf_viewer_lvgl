@@ -43,8 +43,10 @@ static lv_point_t touch_point;
 static v_draw_ops_t *(*draw_ops[V_FORMAT_MAX])(void);
 static uint8_t *orig_data;
 static v_viewer_ops_t *view_ops;
-static char *current_path;
 static v_draw_ops_t *current_ops;
+
+/** global variable */
+char g_current_path[MAX_PATH];
 
 int main(int argc, char **argv)
 {
@@ -94,7 +96,6 @@ int main(int argc, char **argv)
     path = strdup(tmp);
     ERR_RET(!path, "");
     page = settings->get_page();
-    current_path = path;
 
     v_format_t format = get_format(path);
     ERR_RET(format >= V_FORMAT_MAX, "get format @%s", path);
@@ -133,7 +134,7 @@ static void save_current_file(void)
 static void save_as(const char *file)
 {
     d("%s", file);
-    v_format_t format = get_format(current_path);
+    v_format_t format = get_format(g_current_path);
     v_draw_ops_t *ops = get_ops(format);
     v_annots_t *annots = NULL;
 
@@ -152,8 +153,8 @@ error_return:
 static void on_page_changed(uint16_t page)
 {
     d("page:%d", page);
-    v_format_t format = get_format(current_path);
-    show_page(format, current_path, page);
+    v_format_t format = get_format(g_current_path);
+    show_page(format, g_current_path, page);
 }
 
 static void show_mode(v_show_mode_t mode)
@@ -276,7 +277,7 @@ static v_status_t disp_init(void)
 static void file_opened(const char *path)
 {
     v_status_t status;
-    ERR_RETn(strcmp(current_path, path) == 0);
+    ERR_RETn(g_current_path == path || strcmp(g_current_path, path) == 0);
 
     current_ops->free();
 
@@ -295,8 +296,7 @@ static void user_mode_changed(v_user_mode_t mode)
 
 static v_draw_ops_t *get_ops(v_format_t format)
 {
-    current_ops = draw_ops[format]();
-    return current_ops;
+    return draw_ops[format]();
 }
 
 static v_status_t show_page(v_format_t format, const char *path, uint16_t page)
@@ -305,6 +305,7 @@ static v_status_t show_page(v_format_t format, const char *path, uint16_t page)
     d("format:%d page:%d", format, page);
     v_draw_ops_t *ops = get_ops(format);
     ERR_RET(!ops || !ops->init || !ops->open || !ops->size || !ops->pixel, "get ops %p", ops);
+    current_ops = ops;
 
     int w, h;
     status = ops->init();
@@ -357,6 +358,14 @@ static v_status_t show_page(v_format_t format, const char *path, uint16_t page)
     }
 
     d("");
+    const char *tmp = ops->path();
+    if (tmp && tmp != g_current_path)
+    {
+        sprintf(g_current_path, "%s", tmp);
+    }
+
+    v_format_t after_format = get_format(g_current_path);
+    current_ops = ops = get_ops(after_format);
 error_return:
     return status;
 }
