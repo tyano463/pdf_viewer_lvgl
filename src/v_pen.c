@@ -8,6 +8,7 @@
 #include "v_settings.h"
 #include "v_core.h"
 #include "v_misc.h"
+#include "v_undo.h"
 
 #define COORD_CHUNK_NUM 100
 
@@ -18,6 +19,8 @@ static void show_pen_icon(void);
 static void hide_pen_icon(void);
 static void set_pen_icon_visivility(bool vis);
 static void hide_sample(void);
+static void v_show_undo_icon(void);
+static void v_hide_undo_icon(void);
 
 static lv_obj_t *pen_button;
 static lv_obj_t *book_button;
@@ -29,27 +32,28 @@ static lv_obj_t *width_slider;
 static lv_obj_t *opacue_slider;
 static lv_obj_t *sample;
 static v_pen_t *current_pen;
+static lv_obj_t *undo_container;
 
 static v_user_mode_t user_mode;
 static v_show_mode_t show_mode;
 static const uint16_t PICKER_LEFT = 120;
 static const uint16_t PICKER_TOP = 0;
 lv_area_t g_sample_rect = {
-    .x1 = 600,
+    .x1 = 570,
     .y1 = 6,
-    .x2 = 624,
+    .x2 = 594,
     .y2 = 30,
 };
 lv_area_t g_width_slider_rect = {
-    .x1 = 380,
+    .x1 = 360,
     .y1 = 12,
-    .x2 = 460,
+    .x2 = 440,
     .y2 = 18,
 };
 lv_area_t g_opacue_slider_rect = {
-    .x1 = 500,
+    .x1 = 470,
     .y1 = 12,
-    .x2 = 580,
+    .x2 = 550,
     .y2 = 18,
 };
 static void user_mode_change(lv_event_t *e)
@@ -60,14 +64,17 @@ static void user_mode_change(lv_event_t *e)
     if (user_mode == V_USER_MODE_PEN)
     {
         show_pen_icon();
+        v_show_undo_icon();
     }
     else if (user_mode == V_USER_MODE_NORMAL)
     {
         hide_pen_icon();
+        v_hide_undo_icon();
     }
     else if (user_mode == V_USER_MODE_SELECT)
     {
         hide_pen_icon();
+        v_show_undo_icon();
     }
     if (cbs)
     {
@@ -107,6 +114,7 @@ static void v_pen_draw(int32_t x, int32_t y, uint8_t pressure, v_pen_draw_mode_t
             v_annot_t *annot = malloc(sizeof(v_annot_t));
             ERR_RET(!annot, "malloc");
             annot->kind = V_ANNOT_INKLIST;
+            annot->id = generate_id();
             annot->data.inklist.num = 1;
             annot->data.inklist.coord_type = V_ANNOT_COORD_NEW;
             memcpy(&annot->data.inklist.pen, current_pen, sizeof(v_pen_t));
@@ -115,6 +123,8 @@ static void v_pen_draw(int32_t x, int32_t y, uint8_t pressure, v_pen_draw_mode_t
                                                  {0.0f, 1.0f, 0.0f}}};
             active = NULL;
             v_viewer_ops_t *ops = v_get_canvas_ops();
+            v_annot_t *next = v_clone_annot(annot);
+            undo_push(NULL, next, UNDO_ACTION_NEW_INK);
             ops->add_annot(annot);
         }
     }
@@ -283,6 +293,7 @@ static void _hide_pen_icon(void)
 {
     show_mode = V_SHOW_MODE_ANNOT_NO_MENU;
     hide_pen_icon();
+    v_hide_undo_icon();
 }
 
 static void set_visibility(lv_obj_t *obj, bool vis)
@@ -382,6 +393,15 @@ static void show_pen_icon(void)
         v_show_slider(width_slider);
         v_show_slider(opacue_slider);
         show_sample(&g_sample_rect);
+        v_show_undo_icon();
+    }
+    else if (user_mode == V_USER_MODE_SELECT)
+    {
+        v_show_undo_icon();
+    }
+    else
+    {
+        v_hide_undo_icon();
     }
     set_pen_icon_visivility(true);
 }
@@ -456,4 +476,57 @@ v_pen_t *json_to_pen(cJSON *json)
 
 error_return:
     return pen;
+}
+
+static void v_hide_undo_icon(void)
+{
+    if (!undo_container)
+        return;
+    lv_obj_add_flag(undo_container, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void undo_redo_callback(lv_event_t *e)
+{
+    v_undo_type_t kind = (v_undo_type_t)(intptr_t)lv_event_get_user_data(e);
+    v_viewer_ops_t *ops = v_get_canvas_ops();
+    if (!ops)
+        return;
+    if (kind == V_UNDO_TYPE_UNDO)
+    {
+        ops->undo();
+    }
+    else if (kind == V_UNDO_TYPE_REDO)
+    {
+        ops->redo();
+    }
+}
+
+static void v_show_undo_icon(void)
+{
+    if (undo_container)
+    {
+        lv_obj_remove_flag(undo_container, LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
+    d("");
+    undo_container = lv_obj_create(lv_screen_active());
+    lv_obj_remove_style_all(undo_container);
+    lv_obj_align(undo_container, LV_ALIGN_TOP_RIGHT, -60, 10);
+    lv_obj_set_flex_flow(undo_container, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(undo_container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_gap(undo_container, 20, 0);
+    lv_obj_set_size(undo_container, 100, 30);
+
+    lv_obj_t *undo_button = lv_image_create(undo_container);
+    lv_obj_t *redo_button = lv_image_create(undo_container);
+    const lv_image_dsc_t *undo_image = get_icon_dsc("undo");
+    const lv_image_dsc_t *redo_image = get_icon_dsc("redo");
+
+    lv_image_set_src(undo_button, undo_image);
+    lv_image_set_src(redo_button, redo_image);
+
+    lv_obj_add_flag(undo_button, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(redo_button, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(undo_button, undo_redo_callback, LV_EVENT_SINGLE_CLICKED, (void *)(intptr_t)V_UNDO_TYPE_UNDO);
+    lv_obj_add_event_cb(redo_button, undo_redo_callback, LV_EVENT_SINGLE_CLICKED, (void *)(intptr_t)V_UNDO_TYPE_REDO);
 }

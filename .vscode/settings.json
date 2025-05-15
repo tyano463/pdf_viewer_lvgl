@@ -70,5 +70,8 @@
         "plaintext": false,
         "markdown": false,
         "scminput": false
+    },
+    "[json]": {
+        "editor.defaultFormatter": "vscode.json-language-features"
     }
 }

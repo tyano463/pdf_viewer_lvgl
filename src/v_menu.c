@@ -28,6 +28,7 @@ static lv_obj_t *page_indicator;
 static int16_t current_page;
 static int16_t current_page_max;
 static char s_page[4];
+static lv_obj_t *slider;
 
 static void open_file(const char *path)
 {
@@ -171,9 +172,10 @@ static void update_show_mode_button(void)
             float dist = sqrtf(dx * dx + dy * dy);
             // TODO
             uint8_t alpha = 0;
+            const uint8_t edge_alpha = 10;
             if (dist <= radius)
             {
-                alpha = 128 + (radius - dist) / radius * (255 - 128);
+                alpha = edge_alpha + (radius - dist) / radius * (255 - edge_alpha);
             }
 
             show_mode_buf[(i * SHOW_MODE_ICON_SIZE + j) * 4 + 3] = alpha;
@@ -199,17 +201,23 @@ static void page_move(lv_event_t *e)
     d("cur:%d %d", current_page, direction);
     if (!direction)
     {
-        lv_obj_t *slider = lv_event_get_target_obj(e);
         int16_t value = lv_slider_get_value(slider);
-        d("page:%d", value);
+        d("page:%d/%d", value, current_page_max);
+        ERR_RETn(value == current_page);
         set_page(value, current_page_max);
     }
     else
     {
+        int16_t value = current_page + direction;
+        value = min(value, current_page_max);
+        value = max(1, value);
+        ERR_RETn(value == current_page);
         set_page(current_page + direction, current_page_max);
     }
 
     _ops->change_page(current_page);
+error_return:
+    return;
 }
 
 static void page_button(lv_obj_t *parent)
@@ -221,10 +229,12 @@ static void page_button(lv_obj_t *parent)
     lv_obj_remove_style_all(page_control);
     lv_obj_set_flex_flow(page_control, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(page_control, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_size(page_control, 200, 40);
+    lv_obj_set_size(page_control, 200, 60);
     lv_obj_align(page_control, LV_ALIGN_BOTTOM_MID, 0, -10);
 
     page_indicator = lv_label_create(page_control);
+    lv_obj_remove_style_all(page_indicator);
+    lv_obj_set_size(page_indicator, 40, 24);
     lv_obj_remove_style_all(page_indicator);
     sprintf(s_page, "%d", 1);
     lv_label_set_text(page_indicator, s_page);
@@ -276,7 +286,7 @@ static void page_button(lv_obj_t *parent)
     lv_style_init(&style_pressed_color);
     lv_style_set_bg_color(&style_pressed_color, (lv_color_t)LV_COLOR_MAKE(255, 255, 255));
 
-    lv_obj_t *slider = lv_slider_create(container);
+    slider = lv_slider_create(container);
     lv_obj_remove_style_all(slider);
     lv_slider_set_range(slider, 1, 10);
     lv_slider_set_value(slider, 1, LV_ANIM_OFF);
@@ -336,6 +346,7 @@ static void set_icon_visibiliry(bool vis)
     void (*func)(lv_obj_t *, lv_obj_flag_t) = vis ? lv_obj_remove_flag : lv_obj_add_flag;
 
     func(_menu->btn, LV_OBJ_FLAG_HIDDEN);
+    func(page_control, LV_OBJ_FLAG_HIDDEN);
 error_return:
     return;
 }
@@ -356,6 +367,8 @@ static void set_page(int16_t _page, int16_t page_max)
     _page = max(1, _page);
     _page = min(_page, page_max);
 
+    lv_slider_set_range(slider, 1, page_max);
+    lv_slider_set_value(slider, _page, LV_ANIM_OFF);
     ERR_RETn(_page == current_page);
     current_page = _page;
     uint16_t page = current_page;
@@ -397,6 +410,13 @@ static void set_menu_visible(bool visible)
 
     _menu->shown = visible;
     d("menu shown:%d", visible);
+    if (_ops)
+    {
+        if (visible)
+            _ops->menu_opened();
+        else
+            _ops->menu_closed();
+    }
 error_return:
     return;
 }
@@ -432,17 +452,14 @@ static cJSON *get_lang_json(void)
 
 static const char *translate(cJSON *lang, const char *key)
 {
+    const char *ret = key;
     cJSON *label = cJSON_GetObjectItem(lang, key);
-    if (cJSON_IsString(label))
-    {
-        d("v: %s", label->valuestring);
-        return label->valuestring;
-    }
-    else
-    {
-        d("");
-        return key;
-    }
+    ERR_RET(!cJSON_IsString(label), "translate not registered key:%s", key);
+
+    ret = label->valuestring;
+
+error_return:
+    return ret;
 }
 
 static void button_callback(lv_event_t *e)
@@ -483,14 +500,6 @@ static void create_menu(lv_obj_t *parent, cJSON *menu_json)
     lv_obj_t *cont;
     lv_obj_t *label;
 
-    /*Create a sub page*/
-    //    lv_obj_t *sub_page = lv_menu_page_create(menu, NULL);
-    //
-    //    cont = lv_menu_cont_create(sub_page);
-    //    label = lv_label_create(cont);
-    //    lv_label_set_text(label, "Hello, I am hiding here");
-
-    /*Create a main page*/
     lv_obj_t *main_page = lv_menu_page_create(menu, NULL);
 
     cJSON *menu_section;
@@ -518,16 +527,6 @@ static void create_menu(lv_obj_t *parent, cJSON *menu_json)
             }
         }
     }
-    //    lv_label_set_text(label, "Item 1");
-    //
-    //    cont = lv_menu_cont_create(main_page);
-    //    label = lv_label_create(cont);
-    //    lv_label_set_text(label, "Item 2");
-    //
-    //    cont = lv_menu_cont_create(main_page);
-    //    label = lv_label_create(cont);
-    //    lv_label_set_text(label, "Item 3 (Click me!)");
-    //    lv_menu_set_load_page_event(menu, cont, sub_page);
 
     lv_menu_set_page(menu, main_page);
 

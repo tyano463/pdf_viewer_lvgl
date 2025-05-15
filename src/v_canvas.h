@@ -58,6 +58,7 @@ typedef struct str_v_annot
 {
     TAILQ_ENTRY(str_v_annot)
     entry;
+    uint64_t id;
     void *pdf_annot_obj;
     v_matrix_t matrix;
     v_annot_kind_t kind;
@@ -110,8 +111,10 @@ typedef struct str_v_viewer_ops
     void (*move)(const lv_point_t *, const lv_point_t *);
     v_annots_t *(*annots)(void);
     void (*matrix)(v_matrix_t *m);
+    void (*undo)(void);
+    void (*redo)(void);
 } v_viewer_ops_t;
 
 v_viewer_ops_t *v_get_canvas_ops(void);
-
+v_annot_t *v_clone_annot(v_annot_t *orig);
 #endif

@@ -23,6 +23,7 @@ pdf_viewer_lvgl_SOURCES = src/main.c \
 	src/v_log.c \
 	src/v_file.c \
 	src/v_misc.c \
+	src/v_undo.c \
 	src/v_color.c \
 	src/v_icon.c \
 	src/v_assets_list.c \
@@ -53,7 +54,8 @@ AM_LDFLAGS = -lmupdf -lX11 -lstdc++ -lm -lsmf -Wl,-rpath=/usr/local/lib `pkg-con
 
 ASSETS = hamburger pen close_button eraser resize \
 	open_book select circle \
-	prev_page next_page
+	prev_page next_page \
+	undo redo
 ASSET_SRCS = $(addprefix assets_, $(addsuffix _bmp.c, $(ASSETS)))
 JSON = menu ja en
 JSON_SRCS = $(addprefix assets_, $(addsuffix _json.c, $(JSON)))
@@ -71,6 +73,8 @@ EXTRA_DIST = assets/hamburger.bmp \
 	assets/circle.bmp \
 	assets/prev_page.bmp \
 	assets/next_page.bmp \
+	assets/undo.bmp \
+	assets/redo.bmp \
 	assets/menu.json \
 	assets/ja.json \
 	assets/en.json

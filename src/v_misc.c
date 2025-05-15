@@ -17,6 +17,7 @@
 #include <math.h>
 
 #define CLICK_DISTANCE_THRETHOLD 10
+static uint64_t g_id;
 typedef uint8_t misc_filetype_t;
 enum
 {
@@ -545,4 +546,12 @@ uint32_t current_time_ms(void)
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (uint32_t)(ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
+}
+
+uint64_t generate_id(void)
+{
+    g_id++;
+    if (!g_id || g_id > INT64_MAX)
+        g_id = 1;
+    return g_id;
 }

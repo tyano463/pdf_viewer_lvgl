@@ -11,6 +11,9 @@
     },
     {
       "item": "export_pdf"
+    },
+    {
+      "item": "settings"
     }
   ]
 }

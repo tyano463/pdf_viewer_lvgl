@@ -183,6 +183,18 @@ static void show_mode(v_show_mode_t mode)
     }
 }
 
+static void on_menu_open(void)
+{
+    d("");
+    pen_ops->hide_icon();
+}
+
+static void on_menu_close(void)
+{
+    d("");
+    pen_ops->show_icon();
+}
+
 static void init(void)
 {
     menu_cbs.file_opened = file_opened;
@@ -191,6 +203,8 @@ static void init(void)
     menu_cbs.save_as = save_as;
     menu_cbs.show_mode = show_mode;
     menu_cbs.change_page = on_page_changed;
+    menu_cbs.menu_opened = on_menu_open;
+    menu_cbs.menu_closed = on_menu_close;
 
     draw_ops[V_FORMAT_JPEG] = v_jpeg_get_ops;
     draw_ops[V_FORMAT_MIDI] = v_midi_get_ops;

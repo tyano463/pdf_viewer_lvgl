@@ -151,6 +151,39 @@ float scale_factor(const v_matrix_t *m)
     return (scale_x + scale_y) / 2.0f;
 }
 
+bool solve_matrix(v_matrix_t *m, const v_matrix_t *a, const v_matrix_t *b)
+{
+    if (!a || !b || !m)
+        return false;
+
+    float x0 = a->elm[0][0], y0 = a->elm[0][1];
+    float x1 = a->elm[1][0], y1 = a->elm[1][1];
+
+    float x0p = b->elm[0][0], y0p = b->elm[0][1];
+    float x1p = b->elm[1][0], y1p = b->elm[1][1];
+
+    // 6元連立方程式を解く（クラメルの公式で解けるがここでは直接式展開）
+
+    float det = (x0 * y1 - x1 * y0);
+    if (det == 0.0f)
+        return false; // 解なし
+
+    float inv_det = 1.0f / det;
+
+    // 線形部分
+    m->elm[0][0] = (x0p * y1 - x1p * y0) * inv_det;
+    m->elm[0][1] = (-x0p * x1 + x1p * x0) * inv_det;
+
+    m->elm[1][0] = (y0p * y1 - y1p * y0) * inv_det;
+    m->elm[1][1] = (-y0p * x1 + y1p * x0) * inv_det;
+
+    // 並進（平行移動）項を計算（a × m + 並進 = b より）
+    m->elm[0][2] = x0p - (x0 * m->elm[0][0] + y0 * m->elm[0][1]);
+    m->elm[1][2] = y0p - (x0 * m->elm[1][0] + y0 * m->elm[1][1]);
+
+    return true;
+}
+
 void matrix_multiply(v_matrix_t *result, v_matrix_t *m1, v_matrix_t *m2)
 {
     if (!result || !m1 || !m2)
@@ -341,6 +374,10 @@ char *jpeg2pdf(const char *file)
     jpeg_read_header(&cinfo, TRUE);
     jpeg_start_decompress(&cinfo);
 
+    J_COLOR_SPACE cs = cinfo.out_color_space;
+    ERR_RET(cs != JCS_RGB && cs != JCS_GRAYSCALE && cs != JCS_CMYK && cs != JCS_YCbCr, "color space %d is not supported", cs);
+
+    d("color space:%d", cs);
     int width = cinfo.output_width;
     int height = cinfo.output_height;
     int row_stride = width * 4; // CairoはRGBA
@@ -355,14 +392,71 @@ char *jpeg2pdf(const char *file)
         jpeg_read_scanlines(&cinfo, buffer, 1);
         for (int x = 0; x < width; x++)
         {
-            uint8_t r = buffer[0][x * cinfo.output_components + 0];
-            uint8_t g = buffer[0][x * cinfo.output_components + 1];
-            uint8_t b = buffer[0][x * cinfo.output_components + 2];
+            uint8_t r;
+            uint8_t g;
+            uint8_t b;
+            uint8_t a;
+
+            switch (cinfo.out_color_space)
+            {
+            case JCS_RGB:
+                r = buffer[0][x * cinfo.output_components + 0];
+                g = buffer[0][x * cinfo.output_components + 1];
+                b = buffer[0][x * cinfo.output_components + 2];
+                a = 255;
+                break;
+            case JCS_GRAYSCALE:
+                // グレースケール → R = G = B
+                r = g = b = buffer[0][x];
+                a = 255;
+                break;
+
+            case JCS_CMYK:
+                // CMYK → RGB に変換（単純近似: R=255−C, G=255−M, B=255−Y）
+                {
+                    uint8_t c = buffer[0][x * 4 + 0];
+                    uint8_t m = buffer[0][x * 4 + 1];
+                    uint8_t y = buffer[0][x * 4 + 2];
+                    // uint8_t k = buffer[0][x * 4 + 3];
+
+                    // TODO: なぜか白が255になってる
+                    r = c;
+                    g = m;
+                    b = y;
+                    a = 255;
+                }
+                break;
+
+            case JCS_YCbCr:
+                // JPEG の標準カラー空間（YCbCr）→ RGB に変換
+                {
+                    int y = buffer[0][x * 3 + 0];
+                    int cb = buffer[0][x * 3 + 1];
+                    int cr = buffer[0][x * 3 + 2];
+
+                    int r_ = y + 1.402 * (cr - 128);
+                    int g_ = y - 0.344136 * (cb - 128) - 0.714136 * (cr - 128);
+                    int b_ = y + 1.772 * (cb - 128);
+
+                    // clamp to [0, 255]
+                    r = (uint8_t)(r_ < 0 ? 0 : r_ > 255 ? 255
+                                                        : r_);
+                    g = (uint8_t)(g_ < 0 ? 0 : g_ > 255 ? 255
+                                                        : g_);
+                    b = (uint8_t)(b_ < 0 ? 0 : b_ > 255 ? 255
+                                                        : b_);
+                    a = 255;
+                }
+                break;
+            default:
+                ERR_RET(true, "invalid root");
+                break;
+            }
             uint8_t *dst = &raw_data[y * row_stride + x * 4];
             dst[0] = b;
             dst[1] = g;
             dst[2] = r;
-            dst[3] = 255;
+            dst[3] = a;
         }
     }
 

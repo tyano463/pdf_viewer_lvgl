@@ -19,6 +19,8 @@ typedef struct str_v_menu_cb_ops
     void (*export_pdf)(const char *);
     void (*show_mode)(v_show_mode_t mode);
     void (*change_page)(uint16_t page);
+    void (*menu_opened)(void);
+    void (*menu_closed)(void);
 } v_menu_cb_ops_t;
 
 typedef struct str_v_menu_ops

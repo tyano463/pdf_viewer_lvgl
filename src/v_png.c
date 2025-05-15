@@ -84,66 +84,6 @@ static v_status_t v_jpeg_open(const char *path)
     status = pdf_ops->open(pdf_path);
 error_return:
     return status;
-#if 0
-    struct jpeg_decompress_struct cinfo;
-    struct jpeg_error_mgr jerr;
-
-    FILE *infile = fopen(path, "rb");
-    ERR_RET(!infile, "fopen");
-
-    cinfo.err = jpeg_std_error(&jerr);
-    jpeg_create_decompress(&cinfo);
-    jpeg_stdio_src(&cinfo, infile);
-    jpeg_read_header(&cinfo, TRUE);
-    jpeg_start_decompress(&cinfo);
-
-    int width = cinfo.output_width;
-    int height = cinfo.output_height;
-    int row_stride = cinfo.output_width * cinfo.output_components; // RGBの場合、1ピクセルあたり3バイト
-
-    uint8_t *buffer = malloc(height * row_stride);
-    ERR_RET(!buffer, "malloc");
-
-    while (cinfo.output_scanline < cinfo.output_height)
-    {
-        uint8_t *row_pointer[1]; // 現在のスキャンライン
-        row_pointer[0] = buffer + cinfo.output_scanline * row_stride;
-        jpeg_read_scanlines(&cinfo, row_pointer, 1);
-    }
-
-    // Cairoでサーフェスを作成（RGBデータをARGBに変換）
-    uint8_t *argb_data = malloc(width * height * 4); // ARGB8888形式
-    for (int y = 0; y < height; y++)
-    {
-        for (int x = 0; x < width; x++)
-        {
-            const uint8_t *src_pixel = &buffer[(y * width + x) * 3];
-            uint8_t *dst_pixel = &argb_data[(y * width + x) * 4];
-            dst_pixel[0] = src_pixel[2]; // Blue
-            dst_pixel[1] = src_pixel[1]; // Green
-            dst_pixel[2] = src_pixel[0]; // Red
-            dst_pixel[3] = 0xFF;         // Alpha
-        }
-    }
-
-    if (surface)
-    {
-        cairo_surface_destroy(surface);
-    }
-    surface = cairo_image_surface_create_for_data(
-        argb_data,
-        CAIRO_FORMAT_ARGB32,
-        width,
-        height,
-        width * 4);
-    status = ST_SUCCESS;
-
-error_return:
-    jpeg_finish_decompress(&cinfo);
-    jpeg_destroy_decompress(&cinfo);
-    fclose(infile);
-    return status;
-#endif
 }
 
 static int v_png_page(void)

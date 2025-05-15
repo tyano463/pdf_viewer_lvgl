@@ -3,10 +3,12 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <cairo/cairo.h>
+#include "v_common.h"
 #include "v_core.h"
 #include "v_canvas.h"
 #include "v_pen.h"
 #include "v_icon.h"
+#include "v_undo.h"
 
 static void *draw_main(void *);
 static void init_ops(void);
@@ -28,6 +30,8 @@ static void hide_annot_control(void);
 static v_annots_t *v_all_annots(void);
 static void set_scale_translate_matrix(v_matrix_t *m, float scale, float ox, float oy);
 static void v_get_matrix(v_matrix_t *m);
+static void v_undo(void);
+static void v_redo(void);
 
 extern lv_font_t source_hans_16;
 extern lv_font_t source_hans_20;
@@ -75,7 +79,114 @@ static void init_ops(void)
         ops.move = v_move;
         ops.annots = v_all_annots;
         ops.matrix = v_get_matrix;
+        ops.undo = v_undo;
+        ops.redo = v_redo;
     }
+}
+
+static v_annot_t *get_target_annot(uint32_t id)
+{
+    v_annot_t *ret = NULL;
+    v_annot_t *iter;
+
+    ERR_RET(!id, "invalid argument");
+
+    TAILQ_FOREACH(iter, an_head, entry)
+    {
+        if (iter && iter->id == id)
+        {
+            ret = iter;
+            break;
+        }
+    }
+error_return:
+    return ret;
+}
+
+static void do_undo_redo(undo_entry_t *entry, v_undo_type_t kind)
+{
+    ERR_RETn(!entry);
+    v_annot_t *target, *a, *b;
+
+    b = entry->before;
+    a = entry->after;
+
+    d("action:%d %p -> %p", entry->action, b, a);
+
+    switch (entry->action)
+    {
+    case UNDO_ACTION_NEW_INK:
+        ERR_RET(!a, "undo failed");
+
+        if (kind == V_UNDO_TYPE_REDO)
+        {
+            target = get_target_annot(a->id);
+            ERR_RET(target, "target found");
+            v_add_annot(a);
+        }
+        else
+        {
+            target = get_target_annot(a->id);
+            ERR_RET(!target, "target not found");
+            v_remove_annot(target);
+        }
+        break;
+    case UNDO_ACTION_TRANSFORM_INK:
+        ERR_RET(!a || !b, "undo failed");
+        ERR_RET(a->id != b->id, "undo failed");
+        target = get_target_annot(a->id);
+        ERR_RET(!target, "target not found");
+
+        v_remove_annot(target);
+        if (kind == V_UNDO_TYPE_REDO)
+        {
+            memcpy(&target->matrix, &a->matrix, sizeof(v_matrix_t));
+        }
+        else
+        {
+            memcpy(&target->matrix, &b->matrix, sizeof(v_matrix_t));
+        }
+        v_add_annot(target);
+
+        break;
+    case UNDO_ACTION_DELETE_INK:
+        ERR_RET(!b, "undo failed");
+        target = get_target_annot(b->id);
+        if (kind == V_UNDO_TYPE_REDO)
+        {
+            ERR_RET(!target, "target not found");
+            v_remove_annot(target);
+        }
+        else
+        {
+            ERR_RET(target, "target found");
+            v_add_annot(b);
+        }
+        break;
+    case UNDO_ACTION_MOVE_TEXT:
+        d("%p -> %p", entry->before, entry->after);
+        break;
+    case UNDO_ACTION_DELETE_TEXT:
+        d("%p -> %p", entry->before, entry->after);
+        break;
+    default:
+        d("invalid case");
+        break;
+    }
+
+error_return:
+    return;
+}
+
+static void v_undo(void)
+{
+    undo_entry_t *entry = undo_do();
+    do_undo_redo(entry, V_UNDO_TYPE_UNDO);
+}
+static void v_redo(void)
+{
+    undo_entry_t *entry = redo_do();
+    do_undo_redo(entry, V_UNDO_TYPE_REDO);
 }
 
 static lv_font_t *get_font(uint8_t font_size)
@@ -479,8 +590,19 @@ error_return:
     return data;
 }
 
+static void clear_annots(void)
+{
+    v_annot_t *iter;
+    iter = an_head->tqh_first;
+    while (iter)
+    {
+        TAILQ_REMOVE(an_head, iter, entry);
+        release_annot(iter);
+    }
+}
 static v_status_t v_show_image(v_image_t *im)
 {
+    clear_annots();
     //    int w, h;
     //    float scale, scale_x, scale_y;
     if (g_dsc->data)
@@ -614,6 +736,8 @@ static void set_move_matrix(v_matrix_t *m, const lv_point_t *from, const lv_poin
 static void v_move(const lv_point_t *from, const lv_point_t *to)
 {
     v_annot_t *a = annot_control->annot;
+    v_annot_t *prev, *next;
+    prev = v_clone_annot(a);
     v_remove_annot(a);
     v_matrix_t before_matrix, after_matrix;
 
@@ -624,6 +748,8 @@ static void v_move(const lv_point_t *from, const lv_point_t *to)
     {
         a->kind = V_ANNOT_COORD_MODIFIED;
     }
+    next = v_clone_annot(a);
+    undo_push(prev, next, UNDO_ACTION_TRANSFORM_INK);
     v_add_annot(a);
     hide_annot_control();
     show_annot_control(a);
@@ -646,10 +772,13 @@ static void remove_callback(bool result)
 
     hide_annot_control();
     v_annot_t *a = annot_control->annot;
+    v_annot_t *prev = v_clone_annot(a);
     annot_control->annot = NULL;
+    undo_push(prev, NULL, UNDO_ACTION_DELETE_INK);
 
     v_remove_annot(a);
-    release_annot(a);
+    // TODO いつ解放するか
+    //    release_annot(a);
 
 error_return:
     return;
@@ -672,6 +801,16 @@ static void set_scale_matrix(v_matrix_t *m, const lv_point_precise_t *center, fl
     m->elm[1][2] = center->y * (1.0f - scale);
 }
 
+v_annot_t *v_clone_annot(v_annot_t *orig)
+{
+    v_annot_t *ret = NULL;
+    v_annot_t *clone = malloc(sizeof(v_annot_t));
+    ERR_RET(!clone, "malloc");
+    memcpy(clone, orig, sizeof(v_annot_t));
+    ret = clone;
+error_return:
+    return ret;
+}
 static void on_resize_dragged(lv_event_t *ev)
 {
     lv_event_code_t code = lv_event_get_code(ev);
@@ -706,6 +845,8 @@ static void on_resize_dragged(lv_event_t *ev)
         // d("os:%.02f od:%.02f ad:%.02f", original_scale, d, after);
         float scale = after / d;
         v_annot_t *a = annot_control->annot;
+        v_annot_t *prev, *next;
+        prev = v_clone_annot(a);
         v_remove_annot(a);
         v_matrix_t before_matrix, after_matrix;
         memcpy(&before_matrix, &a->matrix, sizeof(v_matrix_t));
@@ -715,6 +856,8 @@ static void on_resize_dragged(lv_event_t *ev)
         {
             a->kind = V_ANNOT_COORD_MODIFIED;
         }
+        next = v_clone_annot(a);
+        undo_push(prev, next, UNDO_ACTION_TRANSFORM_INK);
         v_add_annot(a);
         hide_annot_control();
         show_annot_control(a);

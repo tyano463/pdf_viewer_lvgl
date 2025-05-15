@@ -2,5 +2,6 @@
   "open_file": "ファイルを開く",
   "save_file": "ファイルを上書き保存",
   "save_file_as": "ファイルを別名で保存",
-  "export_pdf": "PDFエクスポート"
+  "export_pdf": "PDFエクスポート",
+  "settings": "設定"
 }
