@@ -7,13 +7,14 @@ LVGL_SOURCES = \
 $(shell find lvgl/src -name "*.c") \
 $(shell find lvgl/src -name "*.cpp")
 
-STATIC_LIB = liblvgl.a
+RUST_BUILD = (cd $(srcdir)/rustlib && cargo build --release)
+RUSTLIB = $(srcdir)/rustlib/target/release/librustlib.a
+
+STATIC_LIB = liblvgl.a 
 
 noinst_LIBRARIES = liblvgl.a
 liblvgl_a_SOURCES = dummy.cpp $(LVGL_SOURCES)
 am_liblvgl_a_OBJECTS = $(LVGL_SOURCES:.c=.o) $(LVGL_SOURCES:.cpp=.o)
-
-pdf_viewer_lvgl_LDADD = $(STATIC_LIB)
 
 pdf_viewer_lvgl_SOURCES = src/main.c \
 	src/v_mouse_cursor.c \
@@ -42,9 +43,10 @@ pdf_viewer_lvgl_SOURCES = src/main.c \
 	src/v_svg.c
 
 C_INC = \
-	-Isrc \
+	-I$(srcdir)/src \
     -I$(srcdir)/lvgl \
-    -I$(srcdir)/lvgl/src
+    -I$(srcdir)/lvgl/src \
+	-I$(srcdir)/rustlib/src
 
 AM_CFLAGS = $(C_INC) -g -O0 -DHIDE_HIDDEN_FILES=1 `pkg-config librsvg-2.0 cairo libcjson libjpeg --cflags` -Wall
 AM_CXXFLAGS = $(C_INC) -g -O0 -DHIDE_HIDDEN_FILES=1 `pkg-config librsvg-2.0 cairo libcjson libjpeg --cflags` 
@@ -86,8 +88,9 @@ $(PATCH_STAMP):
 	@echo "Applying patch to lvgl..."
 	patch -d lvgl -p1 < $(PATCH_FILE) && touch $(PATCH_STAMP)
 
-pdf_viewer_lvgl_LDADD = liblvgl.a
-$(STATIC_LIB): $(PATCH_STAMP) $(liblvgl_a_OBJECTS)
+pdf_viewer_lvgl_LDADD = $(STATIC_LIB) $(RUSTLIB)
+
+$(STATIC_LIB): $(PATCH_STAMP) $(liblvgl_a_OBJECTS) 
 	$(AR) rcs $(STATIC_LIB) $(liblvgl_a_OBJECTS)
 
 assets_%_bmp.c: assets/%.bmp
@@ -96,3 +99,5 @@ assets_%_bmp.c: assets/%.bmp
 assets_%_json.c: assets/%.json
 	xxd -i $< > $@
 
+$(RUSTLIB):
+	$(RUST_BUILD)

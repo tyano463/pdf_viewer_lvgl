@@ -17,6 +17,7 @@
 #include "v_png.h"
 #include "v_svg.h"
 #include "v_midi.h"
+#include "rustlib.h"
 
 #define SWIPE_MARGIN (50)
 
@@ -66,6 +67,7 @@ int main(int argc, char **argv)
 
     (void)v_load_settings();
 
+    d("rust 1+2=%d", rust_add(1, 2));
     init();
 
     view_ops = v_get_canvas_ops();
