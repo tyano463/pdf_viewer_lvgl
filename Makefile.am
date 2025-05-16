@@ -7,9 +7,6 @@ LVGL_SOURCES = \
 $(shell find lvgl/src -name "*.c") \
 $(shell find lvgl/src -name "*.cpp")
 
-RUST_BUILD = (cd $(srcdir)/rustlib && cargo build --release)
-RUSTLIB = $(srcdir)/rustlib/target/release/librustlib.a
-
 STATIC_LIB = liblvgl.a 
 
 noinst_LIBRARIES = liblvgl.a
@@ -45,14 +42,13 @@ pdf_viewer_lvgl_SOURCES = src/main.c \
 C_INC = \
 	-I$(srcdir)/src \
     -I$(srcdir)/lvgl \
-    -I$(srcdir)/lvgl/src \
-	-I$(srcdir)/rustlib/src
+    -I$(srcdir)/lvgl/src 
 
 AM_CFLAGS = $(C_INC) -g -O0 -DHIDE_HIDDEN_FILES=1 `pkg-config librsvg-2.0 cairo libcjson libjpeg --cflags` -Wall
 AM_CXXFLAGS = $(C_INC) -g -O0 -DHIDE_HIDDEN_FILES=1 `pkg-config librsvg-2.0 cairo libcjson libjpeg --cflags` 
 #AM_CFLAGS = $(C_INC) -g -O0 -fsanitize=address
 #AM_CPPFLAGS = $(C_INC) -g -O0 -fsanitize=address
-AM_LDFLAGS = -lmupdf -lX11 -lstdc++ -lm -lsmf -Wl,-rpath=/usr/local/lib `pkg-config librsvg-2.0 cairo libcjson libjpeg --libs`
+AM_LDFLAGS = -lmupdf -lX11 -lstdc++ -lm -lsmf -Wl,-rpath=/usr/local/lib `pkg-config librsvg-2.0 cairo libcjson libjpeg --libs` 
 
 ASSETS = hamburger pen close_button eraser resize \
 	open_book select circle \
@@ -88,7 +84,7 @@ $(PATCH_STAMP):
 	@echo "Applying patch to lvgl..."
 	patch -d lvgl -p1 < $(PATCH_FILE) && touch $(PATCH_STAMP)
 
-pdf_viewer_lvgl_LDADD = $(STATIC_LIB) $(RUSTLIB)
+pdf_viewer_lvgl_LDADD = $(STATIC_LIB) -lrustlib
 
 $(STATIC_LIB): $(PATCH_STAMP) $(liblvgl_a_OBJECTS) 
 	$(AR) rcs $(STATIC_LIB) $(liblvgl_a_OBJECTS)
@@ -98,6 +94,3 @@ assets_%_bmp.c: assets/%.bmp
 
 assets_%_json.c: assets/%.json
 	xxd -i $< > $@
-
-$(RUSTLIB):
-	$(RUST_BUILD)

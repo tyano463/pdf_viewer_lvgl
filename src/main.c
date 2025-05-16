@@ -93,7 +93,7 @@ int main(int argc, char **argv)
     d("pen init %d", status);
 
     const char *tmp = settings->get_path();
-    if (!tmp || !tmp[0])
+    if (!tmp || !tmp[0] || !file_exists(tmp))
         goto no_default;
     path = strdup(tmp);
     ERR_RET(!path, "");
@@ -295,7 +295,8 @@ static void file_opened(const char *path)
     v_status_t status;
     ERR_RETn(g_current_path == path || strcmp(g_current_path, path) == 0);
 
-    current_ops->free();
+    if (current_ops && current_ops->free)
+        current_ops->free();
 
     v_format_t format = get_format(path);
     status = show_page(format, path, 0);
@@ -388,9 +389,6 @@ error_return:
 
 static v_format_t get_format(const char *path)
 {
-    if (!file_exists(path))
-        return V_FORMAT_MAX;
-
     if (ends_with_ignore_case(path, ".pdf"))
         return V_FORMAT_PDF;
     if (ends_with_ignore_case(path, ".jpeg"))

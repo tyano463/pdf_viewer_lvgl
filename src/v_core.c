@@ -273,8 +273,10 @@ char *svg2pdf(const char *file)
     RsvgHandle *rsvg_handle = rsvg_handle_new_from_file(file, &error);
     ERR_RET(!rsvg_handle, "rsvg_handle_new_from_file @ %s", file);
 
-    gdouble w, h;
-    rsvg_handle_get_intrinsic_size_in_pixels(rsvg_handle, &w, &h);
+    RsvgDimensionData dimensions;
+    rsvg_handle_get_dimensions(rsvg_handle, &dimensions);
+    gdouble w = dimensions.width;
+    gdouble h = dimensions.height;
     RsvgRectangle viewport = {
         .x = 0.0,
         .y = 0.0,

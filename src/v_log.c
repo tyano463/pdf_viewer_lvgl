@@ -4,6 +4,7 @@
 #include <time.h>
 #include <sys/time.h>
 #include <stdarg.h>
+#include <stdbool.h>
 
 #include "v_common.h"
 
