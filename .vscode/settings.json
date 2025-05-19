@@ -60,7 +60,8 @@
         "iterator": "c",
         "memory": "c",
         "cairo-pdf.h": "c",
-        "rustlib.h": "c"
+        "rustlib.h": "c",
+        "v_annot.h": "c"
     },
     "C_Cpp.errorSquiggles": "disabled",
     "[jsonc]": {

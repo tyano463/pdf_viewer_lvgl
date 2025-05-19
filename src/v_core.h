@@ -11,6 +11,7 @@ bool in_rect(lv_point_t *a, v_rect_t *rect);
 void show_modal_dialog(lv_obj_t *parent, const char *title, v_message_callback_t callback);
 lv_point_precise_t rect_center(const v_rect_t *p, const v_matrix_t *m);
 float scale_factor(const v_matrix_t *m);
+void matrix_add(v_matrix_t *orig, v_matrix_t *m);
 void matrix_multiply(v_matrix_t *result, v_matrix_t *m1, v_matrix_t *m2);
 /**
  * @brief Solves for the affine transformation matrix m from the equation a × m = b.
@@ -49,4 +50,6 @@ bool inverse_matrix(const v_matrix_t *orig, v_matrix_t *inv);
 char *svg2pdf(const char *file);
 char *png2pdf(const char *file);
 char *jpeg2pdf(const char *file);
+
+char *dump_matrix(v_matrix_t *m);
 #endif

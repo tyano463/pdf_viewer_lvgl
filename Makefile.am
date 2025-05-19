@@ -19,6 +19,7 @@ pdf_viewer_lvgl_SOURCES = src/main.c \
 	src/v_colorpicker.c \
 	src/v_pdf.c \
 	src/v_log.c \
+	src/v_annot.c \
 	src/v_file.c \
 	src/v_misc.c \
 	src/v_undo.c \
@@ -84,7 +85,7 @@ $(PATCH_STAMP):
 	@echo "Applying patch to lvgl..."
 	patch -d lvgl -p1 < $(PATCH_FILE) && touch $(PATCH_STAMP)
 
-pdf_viewer_lvgl_LDADD = $(STATIC_LIB) -lrustlib
+pdf_viewer_lvgl_LDADD = $(STATIC_LIB)
 
 $(STATIC_LIB): $(PATCH_STAMP) $(liblvgl_a_OBJECTS) 
 	$(AR) rcs $(STATIC_LIB) $(liblvgl_a_OBJECTS)

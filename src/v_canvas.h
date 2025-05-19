@@ -6,6 +6,7 @@
 
 #include "v_common.h"
 #include "v_pen.h"
+#include "v_annot.h"
 
 typedef uint8_t v_draw_kind_t;
 enum
@@ -36,44 +37,10 @@ typedef struct str_v_image
     lv_color_format_t format;
 } v_image_t;
 
-typedef uint8_t v_annot_kind_t;
-enum
-{
-    V_ANNOT_INKLIST,
-    V_ANNOT_FREETEXT,
-    V_ANNOT_MAX,
-};
-
-typedef struct str_v_freetext
-{
-
-    const char *content;
-    v_color_t color;
-    uint8_t font_size;
-    char *font_name;
-    v_rect_t position;
-} v_freetext_t;
-
-typedef struct str_v_annot
-{
-    TAILQ_ENTRY(str_v_annot)
-    entry;
-    uint64_t id;
-    void *pdf_annot_obj;
-    v_matrix_t matrix;
-    v_annot_kind_t kind;
-    v_rect_t rect;
-    union
-    {
-        v_freetext_t freetext;
-        v_inklist_t inklist;
-    } data;
-} v_annot_t;
-
 typedef struct str_v_annnots
 {
     uint32_t num;
-    v_annot_t annot[];
+    v_annot_t *annot[];
 } v_annots_t;
 
 typedef struct str_v_annot_control
@@ -116,5 +83,4 @@ typedef struct str_v_viewer_ops
 } v_viewer_ops_t;
 
 v_viewer_ops_t *v_get_canvas_ops(void);
-v_annot_t *v_clone_annot(v_annot_t *orig);
 #endif

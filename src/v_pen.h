@@ -68,6 +68,7 @@ typedef struct str_v_inklist
     v_pen_t pen;
     v_stroke_t *strokes;
     uint16_t num;
+    uint8_t refcnt;
     v_annot_coord_type_t coord_type;
 } v_inklist_t;
 typedef struct str_v_pen_cb_ops

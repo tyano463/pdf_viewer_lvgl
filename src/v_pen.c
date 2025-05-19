@@ -111,16 +111,11 @@ static void v_pen_draw(int32_t x, int32_t y, uint8_t pressure, v_pen_draw_mode_t
         active->num++;
         if (mode == V_PEN_DRAW_END)
         {
-            v_annot_t *annot = malloc(sizeof(v_annot_t));
-            ERR_RET(!annot, "malloc");
-            annot->kind = V_ANNOT_INKLIST;
-            annot->id = generate_id();
-            annot->data.inklist.num = 1;
-            annot->data.inklist.coord_type = V_ANNOT_COORD_NEW;
-            memcpy(&annot->data.inklist.pen, current_pen, sizeof(v_pen_t));
-            annot->data.inklist.strokes = active;
-            annot->matrix = (v_matrix_t){.elm = {{1.0f, 0.0f, 0.0f},
-                                                 {0.0f, 1.0f, 0.0f}}};
+            v_annot_t *annot = v_create_annot(V_ANNOT_INKLIST);
+            annot->data.inklist->num = 1;
+            annot->data.inklist->coord_type = V_ANNOT_COORD_NEW;
+            memcpy(&annot->data.inklist->pen, current_pen, sizeof(v_pen_t));
+            annot->data.inklist->strokes = active;
             active = NULL;
             v_viewer_ops_t *ops = v_get_canvas_ops();
             v_annot_t *next = v_clone_annot(annot);
@@ -142,6 +137,7 @@ static void v_pen_select(float x, float y, v_pen_draw_mode_t mode)
     }
     else if (mode == V_PEN_DRAW_END)
     {
+        d("");
         lv_point_t pos = {
             .x = x,
             .y = y,

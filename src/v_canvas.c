@@ -32,6 +32,7 @@ static void set_scale_translate_matrix(v_matrix_t *m, float scale, float ox, flo
 static void v_get_matrix(v_matrix_t *m);
 static void v_undo(void);
 static void v_redo(void);
+static void init_rect(v_rect_t *rect);
 
 extern lv_font_t source_hans_16;
 extern lv_font_t source_hans_20;
@@ -103,6 +104,12 @@ error_return:
     return ret;
 }
 
+static void clear_selection(void)
+{
+    hide_annot_control();
+    annot_control->annot = NULL;
+}
+
 static void do_undo_redo(undo_entry_t *entry, v_undo_type_t kind)
 {
     ERR_RETn(!entry);
@@ -112,6 +119,8 @@ static void do_undo_redo(undo_entry_t *entry, v_undo_type_t kind)
     a = entry->after;
 
     d("action:%d %p -> %p", entry->action, b, a);
+
+    clear_selection();
 
     switch (entry->action)
     {
@@ -207,7 +216,7 @@ static lv_font_t *get_font(uint8_t font_size)
 
 static void v_add_freetext(v_annot_t *annot)
 {
-    v_freetext_t *t = &annot->data.freetext;
+    v_freetext_t *t = annot->data.freetext;
 
     int16_t w, h;
     w = lv_obj_get_width(canvas);
@@ -236,6 +245,7 @@ static void v_add_freetext(v_annot_t *annot)
     dsc->text = t->content;
     dsc->font = get_font(t->font_size);
 
+    // TODO: matrixに変更
     lv_area_t coord;
     coord.x1 = (int32_t)t->position.left * g_scale + ox;
     coord.y1 = (int32_t)t->position.top * g_scale + oy;
@@ -250,6 +260,8 @@ static void v_add_freetext(v_annot_t *annot)
     d("%s %d,%d,%d,%d", dsc->text, coord.x1, coord.y1, coord.x2, coord.y2);
     lv_canvas_finish_layer(a, &l);
 error_return:
+    if (dsc)
+        free(dsc);
     return;
 }
 
@@ -280,14 +292,10 @@ static void set_scale_translate_matrix(v_matrix_t *m, float scale, float ox, flo
 
 static void v_add_inklist(v_annot_t *annot)
 {
-    v_inklist_t *il = &annot->data.inklist;
-    d("");
-    lv_image_dsc_t *imdsc = (lv_image_dsc_t *)lv_image_get_src(image);
+    v_inklist_t *il = annot->data.inklist;
     int16_t w, h;
     w = lv_obj_get_width(canvas);
     h = lv_obj_get_height(canvas);
-    int32_t ox = (w - imdsc->header.w) / 2;
-    int32_t oy = 0;
 
     annot->pdf_annot_obj = (void *)lv_canvas_create(canvas);
     lv_draw_buf_t *d = malloc(sizeof(lv_draw_buf_t) + w * h * 4);
@@ -302,28 +310,25 @@ static void v_add_inklist(v_annot_t *annot)
 
     lv_canvas_init_layer(a, &l);
     d("argb:%02x%02x%02x%02x", il->pen.color.c.alpha, il->pen.color.c.red, il->pen.color.c.green, il->pen.color.c.blue);
-    annot->rect.left = INT16_MAX;
-    annot->rect.top = INT16_MAX;
-    annot->rect.right = INT16_MIN;
-    annot->rect.bottom = INT16_MIN;
+    init_rect(&annot->rect);
+
+    d("matrix:%.02f,%.02f,%02f %.02f,%.02f,%.02f", annot->matrix.elm[0][0], annot->matrix.elm[0][1], annot->matrix.elm[0][2], annot->matrix.elm[1][0], annot->matrix.elm[1][1], annot->matrix.elm[1][2]);
+
     for (int i = 0; i < il->num; i++)
     {
         v_stroke_t *st = &il->strokes[i];
-        lv_draw_line_dsc_t *dsc = lv_malloc(sizeof(lv_draw_line_dsc_t));
+        static lv_draw_line_dsc_t _dsc;
+        lv_draw_line_dsc_t *dsc = &_dsc;
         lv_draw_line_dsc_init(dsc);
-        if (il->coord_type == V_ANNOT_COORD_ORIGINAL)
-        {
-            v_matrix_t before, m;
-            memcpy(&before, &annot->matrix, sizeof(v_matrix_t));
-            set_scale_translate_matrix(&m, g_scale, (float)ox, (float)oy);
-            matrix_multiply(&annot->matrix, &before, &m);
-        }
+
+        d("st->num:%d", st->num);
         for (int j = 1; j < st->num; j++)
         {
             dsc->p1.x = st->points[j - 1].x;
             dsc->p1.y = st->points[j - 1].y;
             dsc->p2.x = st->points[j].x;
             dsc->p2.y = st->points[j].y;
+            //            d("orig %p %.02f,%.02f-%.02f,%.02f", st, dsc->p1.x, dsc->p1.y, dsc->p2.x, dsc->p2.y);
 
             lv_point_precise_t p1 = dsc->p1;
             lv_point_precise_t p2 = dsc->p2;
@@ -359,15 +364,17 @@ static void v_add_inklist(v_annot_t *annot)
             dsc->color.blue = il->pen.color.c.blue;
             dsc->opa = il->pen.color.c.alpha;
             dsc->width = il->pen.size;
+            //            d("%d: argb:%d,%d,%d,%d w:%d %.02f,%.02f-%.02f,%.02f", j, dsc->opa, dsc->color.red, dsc->color.green, dsc->color.blue, dsc->width, dsc->p1.x, dsc->p1.y, dsc->p2.x, dsc->p2.y);
             lv_draw_line(&l, dsc);
         }
     }
     lv_canvas_finish_layer(a, &l);
+    d("rect: (%d,%d)-(%d,%d)", annot->rect.left, annot->rect.top, annot->rect.right, annot->rect.bottom);
 }
 
 static void v_add_annot(v_annot_t *annot)
 {
-    d("annot:%p", annot);
+    d("annot:%p %d", annot, annot->kind);
     ERR_RETn(!annot);
 
     void (*func[])(v_annot_t *) = {
@@ -376,6 +383,7 @@ static void v_add_annot(v_annot_t *annot)
     };
 
     TAILQ_INSERT_TAIL(an_head, annot, entry);
+    d("an_head %p", an_head->tqh_first);
     func[annot->kind](annot);
 
 error_return:
@@ -395,27 +403,11 @@ static void v_show_annot(void)
     v_set_annot_visibility(true);
 }
 
-static void release_annot(v_annot_t *annot)
-{
-    if (annot->kind == V_ANNOT_INKLIST)
-    {
-        uint16_t n = annot->data.inklist.num;
-        for (int i = 0; i < n; i++)
-        {
-            free(annot->data.inklist.strokes[i].points);
-        }
-        free(annot->data.inklist.strokes);
-    }
-    else if (annot->kind == V_ANNOT_FREETEXT)
-    {
-    }
-    //    free(annot);
-}
-
 static void v_remove_annot(v_annot_t *annot)
 {
     TAILQ_REMOVE(an_head, annot, entry);
     lv_obj_delete(annot->pdf_annot_obj);
+    annot->pdf_annot_obj = NULL;
 }
 
 static void v_set_show_mode(v_show_mode_t mode)
@@ -478,9 +470,10 @@ static void draw_thread_init(void)
     an_head = &_ahead;
     TAILQ_INIT(head);
     TAILQ_INIT(an_head);
-    mutex = lv_malloc(sizeof(pthread_mutex_t));
+    d("an_head: %p", an_head->tqh_first);
+    mutex = malloc(sizeof(pthread_mutex_t));
     pthread_mutex_init(mutex, NULL);
-    th = lv_malloc(sizeof(pthread_t));
+    th = malloc(sizeof(pthread_t));
     draw_func_init();
     running = true;
     pthread_create(th, NULL, draw_main, NULL);
@@ -488,6 +481,21 @@ static void draw_thread_init(void)
 
 static void font_load(void)
 {
+}
+
+static void free_annot_canvas(void *p)
+{
+    ERR_RETn(!p);
+    lv_obj_t *c = (lv_obj_t *)p;
+
+    lv_draw_buf_t *buf = lv_canvas_get_draw_buf(c);
+
+    if (buf)
+        free(buf);
+    lv_obj_delete(c);
+
+error_return:
+    return;
 }
 
 static void annot_control_init(void)
@@ -506,6 +514,8 @@ static void annot_control_init(void)
 
     lv_obj_add_event(annot_control->remove_button, on_remove_pressed, LV_EVENT_SINGLE_CLICKED, NULL);
     lv_obj_add_event(annot_control->resize_button, on_resize_dragged, LV_EVENT_ALL, NULL);
+
+    v_annot_set_free_func(free_annot_canvas);
 }
 static v_status_t v_init_canvas(lv_obj_t *parent)
 {
@@ -593,11 +603,14 @@ error_return:
 static void clear_annots(void)
 {
     v_annot_t *iter;
-    iter = an_head->tqh_first;
+    iter = TAILQ_FIRST(an_head);
     while (iter)
     {
+        d("iter:%p head:%p", iter, an_head->tqh_first);
         TAILQ_REMOVE(an_head, iter, entry);
-        release_annot(iter);
+        v_remove_annot(iter);
+        v_free_annot(iter);
+        iter = TAILQ_FIRST(an_head);
     }
 }
 static v_status_t v_show_image(v_image_t *im)
@@ -669,33 +682,80 @@ static void show_annot_control(v_annot_t *a)
     r = annot_control->resize_button;
     d = annot_control->remove_button;
 
-    // 元の座標
     float x = a->rect.right;
     float y = a->rect.bottom;
 
-    // 行列変換
-    float x_trans = a->matrix.elm[0][0] * x + a->matrix.elm[0][1] * y + a->matrix.elm[0][2];
-    float y_trans = a->matrix.elm[1][0] * x + a->matrix.elm[1][1] * y + a->matrix.elm[1][2];
-
-    lv_obj_set_pos(r, x_trans, y_trans);
+    lv_obj_set_pos(r, x, y);
     lv_obj_remove_flag(r, LV_OBJ_FLAG_HIDDEN);
 
     // 2個目も同様に +40 の処理を行う（Y方向にシフト）
     x = a->rect.right;
     y = a->rect.bottom + 40;
 
-    x_trans = a->matrix.elm[0][0] * x + a->matrix.elm[0][1] * y + a->matrix.elm[0][2];
-    y_trans = a->matrix.elm[1][0] * x + a->matrix.elm[1][1] * y + a->matrix.elm[1][2];
-
-    lv_obj_set_pos(d, x_trans, y_trans);
+    lv_obj_set_pos(d, x, y);
     lv_obj_remove_flag(d, LV_OBJ_FLAG_HIDDEN);
 }
 
+static void init_rect(v_rect_t *rect)
+{
+    ERR_RET(!rect, "invalid arg");
+    rect->left = INT16_MAX;
+    rect->top = INT16_MAX;
+    rect->right = INT16_MIN;
+    rect->bottom = INT16_MIN;
+error_return:
+    return;
+}
+
+static void update_rect_point(v_rect_t *r, v_point_t *p)
+{
+    if (p->x < r->left)
+        r->left = p->x;
+    if (p->x > r->right)
+        r->right = p->x;
+    if (p->y < r->top)
+        r->top = p->y;
+    if (p->y < r->bottom)
+        r->bottom = p->y;
+}
+
+static void update_rect(v_annot_t *a)
+{
+    ERR_RETn(!a);
+    if (a->kind == V_ANNOT_INKLIST)
+    {
+        v_inklist_t *il = a->data.inklist;
+        ERR_RETn(!il);
+        init_rect(&a->rect);
+        for (int i = 0; i < il->num; i++)
+        {
+            v_stroke_t *st = &il->strokes[i];
+            if (!st)
+                continue;
+            for (int j = 0; j < st->num; j++)
+            {
+                v_point_t *p = &st->points[j];
+                static v_point_t c;
+                c.x = a->matrix.elm[0][0] * p->x +
+                      a->matrix.elm[0][1] * p->y +
+                      a->matrix.elm[0][2];
+                c.y = a->matrix.elm[1][0] * p->x +
+                      a->matrix.elm[1][1] * p->y +
+                      a->matrix.elm[1][2];
+
+                update_rect_point(&a->rect, &c);
+            }
+        }
+    }
+error_return:
+    return;
+}
 static void v_select(lv_point_t *pos)
 {
     v_annot_t *annot = NULL, *iter;
     TAILQ_FOREACH(iter, an_head, entry)
     {
+        // update_rect(iter);
         if (in_rect(pos, &iter->rect))
         {
             // clang-format off
@@ -713,6 +773,7 @@ static void v_select(lv_point_t *pos)
     ERR_RETn(!annot);
 
     annot_control->annot = annot;
+    d("target:%p %d", annot, annot->kind);
 
     show_annot_control(annot);
 
@@ -739,14 +800,16 @@ static void v_move(const lv_point_t *from, const lv_point_t *to)
     v_annot_t *prev, *next;
     prev = v_clone_annot(a);
     v_remove_annot(a);
-    v_matrix_t before_matrix, after_matrix;
+    v_matrix_t matrix;
 
-    memcpy(&before_matrix, &a->matrix, sizeof(v_matrix_t));
-    set_move_matrix(&after_matrix, from, to);
-    matrix_multiply(&a->matrix, &before_matrix, &after_matrix);
-    if (a->kind == V_ANNOT_COORD_ORIGINAL)
+    set_move_matrix(&matrix, from, to);
+    matrix_add(&a->matrix, &matrix);
+    // d(" M1:\n%s", dump_matrix(&before_matrix));
+    // d(" M2:\n%s", dump_matrix(&after_matrix));
+    // d(" M1*M2:\n%s", dump_matrix(&a->matrix));
+    if (a->kind == V_ANNOT_INKLIST && a->data.inklist->coord_type == V_ANNOT_COORD_ORIGINAL)
     {
-        a->kind = V_ANNOT_COORD_MODIFIED;
+        a->data.inklist->coord_type = V_ANNOT_COORD_MODIFIED;
     }
     next = v_clone_annot(a);
     undo_push(prev, next, UNDO_ACTION_TRANSFORM_INK);
@@ -778,7 +841,6 @@ static void remove_callback(bool result)
 
     v_remove_annot(a);
     // TODO いつ解放するか
-    //    release_annot(a);
 
 error_return:
     return;
@@ -801,16 +863,6 @@ static void set_scale_matrix(v_matrix_t *m, const lv_point_precise_t *center, fl
     m->elm[1][2] = center->y * (1.0f - scale);
 }
 
-v_annot_t *v_clone_annot(v_annot_t *orig)
-{
-    v_annot_t *ret = NULL;
-    v_annot_t *clone = malloc(sizeof(v_annot_t));
-    ERR_RET(!clone, "malloc");
-    memcpy(clone, orig, sizeof(v_annot_t));
-    ret = clone;
-error_return:
-    return ret;
-}
 static void on_resize_dragged(lv_event_t *ev)
 {
     lv_event_code_t code = lv_event_get_code(ev);
@@ -830,7 +882,7 @@ static void on_resize_dragged(lv_event_t *ev)
         lv_obj_t *btn = lv_event_get_target_obj(ev);
         lv_obj_set_style_image_opa(btn, LV_OPA_50, 0);
         v_annot_t *a = annot_control->annot;
-        center = rect_center(&a->rect, &a->matrix);
+        center = rect_center(&a->rect, NULL);
         d = distancef(&center, &point);
         // original_scale = scale_factor(&a->matrix);
     }
@@ -842,19 +894,24 @@ static void on_resize_dragged(lv_event_t *ev)
         lv_obj_t *btn = lv_event_get_target_obj(ev);
         lv_obj_set_style_image_opa(btn, LV_OPA_COVER, 0);
         float after = distancef(&center, &point);
-        // d("os:%.02f od:%.02f ad:%.02f", original_scale, d, after);
+        d("os:%.02f od:%.02f ad:%.02f", d, after);
         float scale = after / d;
         v_annot_t *a = annot_control->annot;
+        d("target:%p", a);
         v_annot_t *prev, *next;
         prev = v_clone_annot(a);
         v_remove_annot(a);
         v_matrix_t before_matrix, after_matrix;
         memcpy(&before_matrix, &a->matrix, sizeof(v_matrix_t));
         set_scale_matrix(&after_matrix, &center, scale);
-        matrix_multiply(&a->matrix, &before_matrix, &after_matrix);
-        if (a->kind == V_ANNOT_COORD_ORIGINAL)
+        //        d("c:%f,%f s:%.02f, aft:%.02f,%.02f,%.02f %.02f,%.02f,%.02f", center.x, center.y, scale, after_matrix.elm[0][0], after_matrix.elm[0][1], after_matrix.elm[0][2], after_matrix.elm[1][0], after_matrix.elm[1][1], after_matrix.elm[1][2]);
+        matrix_multiply(&a->matrix, &after_matrix, &before_matrix);
+        //        d(" M1:\n%s", dump_matrix(&before_matrix));
+        //        d(" M2:\n%s", dump_matrix(&after_matrix));
+        //        d(" M1*M2:\n%s", dump_matrix(&a->matrix));
+        if (a->kind == V_ANNOT_INKLIST && a->data.inklist->coord_type == V_ANNOT_COORD_ORIGINAL)
         {
-            a->kind = V_ANNOT_COORD_MODIFIED;
+            a->data.inklist->coord_type = V_ANNOT_COORD_MODIFIED;
         }
         next = v_clone_annot(a);
         undo_push(prev, next, UNDO_ACTION_TRANSFORM_INK);
@@ -877,7 +934,7 @@ static v_annots_t *v_all_annots(void)
         n++;
     }
 
-    annots = malloc(sizeof(v_annots_t) + sizeof(v_annot_t) * n);
+    annots = malloc(sizeof(v_annots_t) + sizeof(v_annot_t *) * n);
     ERR_RET(!annots, "memory error");
 
     annots->num = n;
@@ -885,7 +942,7 @@ static v_annots_t *v_all_annots(void)
     i = 0;
     TAILQ_FOREACH(iter, an_head, entry)
     {
-        memcpy(&annots->annot[i++], iter, sizeof(v_annot_t));
+        annots->annot[i++] = iter;
     }
 
     ret = annots;

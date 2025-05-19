@@ -18,6 +18,7 @@
 #define EVENTFD_PATH "/tmp/ipc_fifo"
 
 static int fd_in;
+static char debug_str[MAX_PATH];
 
 float distance(const lv_point_t *a, const lv_point_t *b)
 {
@@ -184,6 +185,13 @@ bool solve_matrix(v_matrix_t *m, const v_matrix_t *a, const v_matrix_t *b)
     return true;
 }
 
+void matrix_add(v_matrix_t *orig, v_matrix_t *m)
+{
+    if (!orig || !m)
+        return;
+    orig->elm[0][2] += m->elm[0][2];
+    orig->elm[1][2] += m->elm[1][2];
+}
 void matrix_multiply(v_matrix_t *result, v_matrix_t *m1, v_matrix_t *m2)
 {
     if (!result || !m1 || !m2)
@@ -274,7 +282,13 @@ char *svg2pdf(const char *file)
     ERR_RET(!rsvg_handle, "rsvg_handle_new_from_file @ %s", file);
 
     RsvgDimensionData dimensions;
+
+    // Buildroot fails to build with librsvg 2.60.0, so this uses 2.50.9-compatible API
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     rsvg_handle_get_dimensions(rsvg_handle, &dimensions);
+#pragma GCC diagnostic pop
+
     gdouble w = dimensions.width;
     gdouble h = dimensions.height;
     RsvgRectangle viewport = {
@@ -507,4 +521,14 @@ error_return:
     if (!ret && pdf_file)
         free(pdf_file);
     return ret;
+}
+
+char *dump_matrix(v_matrix_t *m)
+{
+    char *p = debug_str;
+    sprintf(p, "%.02f %.02f\n"
+               "%.02f %.02f\n"
+               "%.02f %.02f",
+            m->elm[0][0], m->elm[1][0], m->elm[0][1], m->elm[1][1], m->elm[0][2], m->elm[1][2]);
+    return debug_str;
 }

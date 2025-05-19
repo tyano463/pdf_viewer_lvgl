@@ -17,7 +17,6 @@
 #include "v_png.h"
 #include "v_svg.h"
 #include "v_midi.h"
-#include "rustlib.h"
 
 #define SWIPE_MARGIN (50)
 
@@ -67,7 +66,6 @@ int main(int argc, char **argv)
 
     (void)v_load_settings();
 
-    d("rust 1+2=%d", rust_add(1, 2));
     init();
 
     view_ops = v_get_canvas_ops();
@@ -319,6 +317,7 @@ static v_draw_ops_t *get_ops(v_format_t format)
 static v_status_t show_page(v_format_t format, const char *path, uint16_t page)
 {
     v_status_t status = ST_PDF_OPEN_FAILED;
+    v_annots_t *annots = NULL;
     d("format:%d page:%d", format, page);
     v_draw_ops_t *ops = get_ops(format);
     ERR_RET(!ops || !ops->init || !ops->open || !ops->size || !ops->pixel, "get ops %p", ops);
@@ -359,7 +358,7 @@ static v_status_t show_page(v_format_t format, const char *path, uint16_t page)
 
     status = ST_SUCCESS;
     ERR_RETn(!ops->annots);
-    v_annots_t *annots = ops->annots();
+    annots = ops->annots();
     ERR_RETn(!annots);
 
     for (int i = 0; i < annots->num; i++)
@@ -371,7 +370,7 @@ static v_status_t show_page(v_format_t format, const char *path, uint16_t page)
         //             v_annot_t *a = &annots->annot[i];
         //             d("pos: %p %.0f, %.0f", &a->data.freetext.position, a->data.freetext.position.left, a->data.freetext.position.top);
         //         }
-        view_ops->add_annot(&annots->annot[i]);
+        view_ops->add_annot(annots->annot[i]);
     }
 
     d("");
@@ -384,6 +383,8 @@ static v_status_t show_page(v_format_t format, const char *path, uint16_t page)
     v_format_t after_format = get_format(g_current_path);
     current_ops = ops = get_ops(after_format);
 error_return:
+    if (annots)
+        free(annots);
     return status;
 }
 
