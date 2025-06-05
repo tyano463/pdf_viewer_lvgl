@@ -427,8 +427,13 @@ static void ext_on_page_changed(const v_ext_command_t *command)
     }
 }
 
+static void dummy_func(const v_ext_command_t *_)
+{
+}
+
 static void ext_command_func_init(void)
 {
+    ext_command_func[V_EXT_NONE] = dummy_func;
     ext_command_func[V_EXT_PAGE_PREV] = ext_on_page_changed;
     ext_command_func[V_EXT_PAGE_NEXT] = ext_on_page_changed;
 }

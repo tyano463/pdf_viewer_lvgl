@@ -129,9 +129,13 @@ static void v_musicxml_free(void)
 
 static v_status_t v_musicxml_open(const char *file)
 {
+    v_status_t status = ST_MXL_OPEN_FAILED;
     const char *svg = musicxml2pdf(file);
+    ERR_RETn(!svg);
 
-    return pdf_ops->open(svg);
+    status = pdf_ops->open(svg);
+error_return:
+    return status;
 }
 static int v_musicxml_pagenum(void)
 {

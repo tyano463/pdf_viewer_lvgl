@@ -227,19 +227,31 @@ error_return:
 
 v_status_t v_check_external_command(v_ext_command_t *ext_command)
 {
+    uint8_t buf[2];
     v_status_t status = ST_EXT_RECEIVER_INIT_FAILED;
+    static uint8_t prev_value = 0;
+    ext_command->command = V_EXT_NONE;
     ERR_RET(fd_in <= 0, "efd open failed");
 
-    ssize_t n = read(fd_in, ext_command, sizeof(v_ext_command_t));
+    ssize_t n = read(fd_in, buf, 2);
 
     if (n > 0)
     {
         status = ST_SUCCESS;
+        ERR_RETn(buf[0] != 0x30);
+        ERR_RETn(prev_value == buf[1]);
+
+        prev_value = buf[1];
+        if (buf[1] == 1)
+        {
+            ext_command->command = V_EXT_PAGE_NEXT;
+        }
     }
     else if (errno == EAGAIN || errno == EWOULDBLOCK)
     {
         status = ST_EXT_NO_RECEIVE;
     }
+
 error_return:
     return status;
 }
