@@ -25,4 +25,9 @@ char *get_original_filename(const char *filename);
 bool is_click(float distance);
 uint32_t current_time_ms(void);
 uint64_t generate_id(void);
+int running_pid(const char *process_name);
+int running_pid_from_file(const char *process_name);
+int process_kill(int pid);
+void start_process_async(const char *exec_path);
+uint32_t v_current_time(void);
 #endif

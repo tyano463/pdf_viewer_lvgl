@@ -139,7 +139,7 @@ error_return:
 }
 static int v_musicxml_pagenum(void)
 {
-    return 1;
+    return pdf_ops->pagenum();
 }
 static v_status_t v_musicxml_pixel(uint8_t *data, int page, int rowstride, v_scale_t ctm)
 {

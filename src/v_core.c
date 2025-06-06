@@ -15,9 +15,6 @@
 #define A4_WIDTH_PT 595.0
 #define A4_HEIGHT_PT 842.0
 
-#define EVENTFD_PATH "/tmp/ipc_fifo"
-
-static int fd_in;
 static char debug_str[MAX_PATH];
 
 float distance(const lv_point_t *a, const lv_point_t *b)
@@ -210,50 +207,6 @@ void matrix_multiply(v_matrix_t *result, v_matrix_t *m1, v_matrix_t *m2)
 
     // 結果を返す
     *result = temp;
-}
-
-v_status_t v_init_external_receiver(void)
-{
-    fd_in = 0;
-    int ret;
-    ret = mkfifo(EVENTFD_PATH, 0666);
-    ERR_RET(ret < 0 && errno != EEXIST, "fd create fail");
-
-    fd_in = open(EVENTFD_PATH, O_RDONLY | O_NONBLOCK);
-
-error_return:
-    return fd_in >= 0 ? ST_SUCCESS : ST_EXT_RECEIVER_INIT_FAILED;
-}
-
-v_status_t v_check_external_command(v_ext_command_t *ext_command)
-{
-    uint8_t buf[2];
-    v_status_t status = ST_EXT_RECEIVER_INIT_FAILED;
-    static uint8_t prev_value = 0;
-    ext_command->command = V_EXT_NONE;
-    ERR_RET(fd_in <= 0, "efd open failed");
-
-    ssize_t n = read(fd_in, buf, 2);
-
-    if (n > 0)
-    {
-        status = ST_SUCCESS;
-        ERR_RETn(buf[0] != 0x30);
-        ERR_RETn(prev_value == buf[1]);
-
-        prev_value = buf[1];
-        if (buf[1] == 1)
-        {
-            ext_command->command = V_EXT_PAGE_NEXT;
-        }
-    }
-    else if (errno == EAGAIN || errno == EWOULDBLOCK)
-    {
-        status = ST_EXT_NO_RECEIVE;
-    }
-
-error_return:
-    return status;
 }
 
 bool inverse_matrix(const v_matrix_t *orig, v_matrix_t *inv)

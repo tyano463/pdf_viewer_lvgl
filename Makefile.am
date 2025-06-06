@@ -13,6 +13,8 @@ noinst_LIBRARIES = liblvgl.a
 liblvgl_a_SOURCES = dummy.cpp $(LVGL_SOURCES)
 am_liblvgl_a_OBJECTS = $(LVGL_SOURCES:.c=.o) $(LVGL_SOURCES:.cpp=.o)
 
+include_HEADERS = src/v_ext_feature.h
+
 pdf_viewer_lvgl_SOURCES = src/main.c \
 	src/v_mouse_cursor.c \
 	src/v_menu.c \
@@ -37,6 +39,7 @@ pdf_viewer_lvgl_SOURCES = src/main.c \
 	fonts/source_hans_20.c \
 	fonts/source_hans_24.c \
 	src/v_core.c \
+	src/v_ext_feature.c \
 	src/convert.c \
 	src/v_svg.c
 

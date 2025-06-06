@@ -6,10 +6,34 @@
 #include "v_misc.h"
 #include "v_assets_list.h"
 #include "v_settings.h"
+#include "v_ext_feature.h"
 
 #define MENU_JSON "menu"
+#define BLE_RECEIVER "pedal_receiver"
+#define BLE_RECEIVER_PATH "/usr/bin/" BLE_RECEIVER
 
+typedef uint8_t lv_menu_builder_variant_t;
+enum
+{
+    LV_MENU_ITEM_BUILDER_VARIANT_1,
+    LV_MENU_ITEM_BUILDER_VARIANT_2
+};
 extern unsigned char assets_hamburger_bmp[];
+
+// Todo:
+enum
+{
+    BLE_RECEIVER_IS_DIED,
+    BLE_NOT_CONNECTED,
+    BLE_CONNECTED,
+    BLE_STATUS_MAX,
+};
+
+static const char *ble_status_messages[BLE_STATUS_MAX] = {
+    "Receiver died",
+    "Not Connected",
+    "Connected",
+};
 
 static cJSON *load_menu_settings(void);
 static void create_menu(lv_obj_t *parent, cJSON *menu_json);
@@ -17,6 +41,7 @@ static void hide_menu(void);
 static void show_menu(void);
 static void set_page(int16_t _page, int16_t page_max);
 static int16_t get_page(void);
+static void periodic_proc(void);
 
 static v_menu_t *_menu;
 static v_menu_cb_ops_t *_ops;
@@ -29,6 +54,8 @@ static int16_t current_page;
 static int16_t current_page_max;
 static char s_page[4];
 static lv_obj_t *slider;
+static lv_obj_t *receiver_status_label;
+static uint32_t last_ble_restart_time = 0;
 
 static void open_file(const char *path)
 {
@@ -390,6 +417,7 @@ static void init_ops(void)
         g_menu_ops.hide_icon = hide_icon;
         g_menu_ops.set_page = set_page;
         g_menu_ops.get_page = get_page;
+        g_menu_ops.periodic_proc = periodic_proc;
     }
 }
 
@@ -486,6 +514,47 @@ static void button_callback(lv_event_t *e)
     hide_menu();
 }
 
+static void restart_receiver(lv_event_t *ev)
+{
+    uint32_t now = v_current_time();
+
+    // Prevent rapid repeat (3s)
+    if ((now - last_ble_restart_time) < 3)
+        return;
+    last_ble_restart_time = now;
+
+    int pid = running_pid_from_file(BLE_RECEIVER);
+    if (pid)
+    {
+        process_kill(pid);
+    }
+    start_process_async(BLE_RECEIVER_PATH);
+}
+
+static void set_menu_contents(lv_obj_t *menu, lv_obj_t *cont, cJSON *kind)
+{
+    ERR_RETn(!menu || !cont || !kind);
+    ERR_RETn(!cJSON_IsString(kind));
+
+    lv_obj_t *sub_page = lv_menu_page_create(menu, NULL);
+    lv_obj_t *contents = lv_menu_cont_create(sub_page);
+
+    // TODO: Add conditional handling for non-BLE processing when implemented
+    lv_obj_t *label1 = lv_label_create(contents);
+    lv_label_set_text(label1, "BLE Receiver status");
+
+    receiver_status_label = lv_label_create(contents);
+    lv_label_set_text(receiver_status_label, "Second Text");
+
+    lv_obj_t *button = lv_button_create(contents);
+    lv_obj_t *btn_label = lv_label_create(button);
+    lv_label_set_text(btn_label, "Force Restart");
+    lv_obj_add_event_cb(button, restart_receiver, LV_EVENT_SINGLE_CLICKED, NULL);
+    lv_menu_set_load_page_event(menu, cont, sub_page);
+error_return:
+    return;
+}
+
 static void create_menu(lv_obj_t *parent, cJSON *menu_json)
 {
     cJSON *lang = get_lang_json();
@@ -515,6 +584,7 @@ static void create_menu(lv_obj_t *parent, cJSON *menu_json)
         cJSON_ArrayForEach(entry, menu_section)
         {
             cJSON *item = cJSON_GetObjectItem(entry, "item");
+            cJSON *contents = cJSON_GetObjectItem(entry, "contents");
             if (cJSON_IsString(item))
             {
                 d(" - item: %s", item->valuestring);
@@ -523,7 +593,14 @@ static void create_menu(lv_obj_t *parent, cJSON *menu_json)
                 const char *text = translate(lang, item->valuestring);
                 lv_label_set_text(label, text);
                 lv_obj_add_flag(cont, LV_OBJ_FLAG_CLICKABLE);
-                lv_obj_add_event_cb(cont, button_callback, LV_EVENT_SINGLE_CLICKED, item->valuestring);
+                if (contents)
+                {
+                    set_menu_contents(menu, cont, contents);
+                }
+                else
+                {
+                    lv_obj_add_event_cb(cont, button_callback, LV_EVENT_SINGLE_CLICKED, item->valuestring);
+                }
             }
         }
     }
@@ -544,4 +621,34 @@ static cJSON *load_menu_settings(void)
 static int16_t get_page(void)
 {
     return current_page;
+}
+
+static void update_ble_label(uint8_t ble_status)
+{
+    lv_label_set_text(receiver_status_label,
+                      ble_status_messages[ble_status]);
+}
+
+static void periodic_proc(void)
+{
+    static uint8_t ble_bef_status = -1;
+    static uint8_t ble_cur_status;
+    static v_ext_info_t ble_info = {0};
+
+    v_ext_ops_t *ext_ops = v_get_ext_ops();
+    v_ext_info_t *cur = ext_ops->get_external_status(V_EXT_FEATURE_BLE_RECEIVER);
+    if (cur->hb_status == V_EXT_HB_ALIVE)
+    {
+        ble_cur_status = cur->bt.connected ? BLE_CONNECTED : BLE_NOT_CONNECTED;
+    }
+    else
+    {
+        ble_cur_status = BLE_RECEIVER_IS_DIED;
+    }
+    if (ble_bef_status != ble_cur_status)
+    {
+        memcpy(&ble_info, cur, sizeof(v_ext_info_t));
+        update_ble_label(ble_cur_status);
+        ble_bef_status = ble_cur_status;
+    }
 }

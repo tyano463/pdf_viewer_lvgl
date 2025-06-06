@@ -13,7 +13,8 @@
       "item": "export_pdf"
     },
     {
-      "item": "settings"
+      "item": "settings",
+      "contents": "settings"
     }
   ]
 }

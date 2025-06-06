@@ -44,8 +44,6 @@ void matrix_multiply(v_matrix_t *result, v_matrix_t *m1, v_matrix_t *m2);
  * @retval 0 if the system is singular (e.g., input points are colinear)
  */
 bool solve_matrix(v_matrix_t *m, const v_matrix_t *a, const v_matrix_t *b);
-v_status_t v_check_external_command(v_ext_command_t *ext_command);
-v_status_t v_init_external_receiver(void);
 bool inverse_matrix(const v_matrix_t *orig, v_matrix_t *inv);
 char *svg2pdf(const char *file);
 char *png2pdf(const char *file);

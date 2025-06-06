@@ -10,6 +10,7 @@
 #include <ctype.h>
 #include <stdarg.h>
 #include <time.h>
+#include <signal.h>
 #include <libgen.h>
 
 #include "v_common.h"
@@ -554,4 +555,87 @@ uint64_t generate_id(void)
     if (!g_id || g_id > INT64_MAX)
         g_id = 1;
     return g_id;
+}
+
+int running_pid(const char *process_name)
+{
+    DIR *dir = opendir("/proc");
+    if (!dir)
+        return 0;
+
+    struct dirent *entry;
+    while ((entry = readdir(dir)))
+    {
+        if (!isdigit(entry->d_name[0]))
+            continue;
+
+        char path[256], cmdline[256];
+        snprintf(path, sizeof(path), "/proc/%s/cmdline", entry->d_name);
+        FILE *fp = fopen(path, "r");
+        if (!fp)
+            continue;
+
+        fgets(cmdline, sizeof(cmdline), fp);
+        fclose(fp);
+
+        if (strstr(cmdline, process_name))
+        {
+            int pid = atoi(entry->d_name);
+            closedir(dir);
+            return pid;
+        }
+    }
+    closedir(dir);
+    return 0;
+}
+
+int running_pid_from_file(const char *process_name)
+{
+    char pid_file_path[256];
+    snprintf(pid_file_path, sizeof(pid_file_path), "/run/%s.pid", process_name);
+
+    FILE *fp = fopen(pid_file_path, "r");
+    if (!fp)
+        return 0;
+
+    int pid;
+    if (fscanf(fp, "%d", &pid) != 1)
+    {
+        fclose(fp);
+        return 0;
+    }
+    fclose(fp);
+
+    return pid;
+}
+
+int process_kill(int pid)
+{
+    return kill(pid, SIGKILL);
+}
+
+void start_process_async(const char *exec_path)
+{
+    pid_t pid = vfork();
+    if (pid < 0)
+    {
+        perror("Failed to vfork");
+        exit(1);
+    }
+    else if (pid == 0)
+    {
+        const char *exec_name = strrchr(exec_path, '/');
+        exec_name = (exec_name) ? exec_name + 1 : exec_path;
+
+        execl(exec_path, exec_name, (char *)NULL);
+        perror("Failed to start process");
+        _exit(1);
+    }
+}
+
+uint32_t v_current_time(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint32_t)ts.tv_sec;
 }

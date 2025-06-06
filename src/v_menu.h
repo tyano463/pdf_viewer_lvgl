@@ -30,6 +30,7 @@ typedef struct str_v_menu_ops
     void (*hide_icon)(void);
     void (*set_page)(int16_t page, int16_t page_max);
     int16_t (*get_page)(void);
+    void (*periodic_proc)(void);
 } v_menu_ops_t;
 v_menu_ops_t *v_get_menu_ops(void);
 

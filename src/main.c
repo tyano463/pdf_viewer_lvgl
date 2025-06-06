@@ -17,6 +17,7 @@
 #include "v_png.h"
 #include "v_svg.h"
 #include "v_midi.h"
+#include "v_ext_feature.h"
 
 #define SWIPE_MARGIN (50)
 
@@ -29,10 +30,10 @@ static void user_mode_changed(v_user_mode_t);
 static void pdf_callback(lv_event_t *e);
 static v_format_t get_format(const char *path);
 static v_status_t show_page(v_format_t format, const char *path, uint16_t page);
-static void ext_command_func_init(void);
 static v_draw_ops_t *get_ops(v_format_t format);
+static void navigate_page_handler(v_ext_command_type_t t);
+static void on_page_changed(uint16_t page);
 
-static void (*ext_command_func[V_EXT_COMMAND_MAX])(const v_ext_command_t *);
 static lv_display_t *disp;
 static v_pen_cb_ops_t pen_cbs;
 static v_pen_ops_t *pen_ops;
@@ -53,7 +54,7 @@ int main(int argc, char **argv)
     v_status_t status;
     char *path;
     uint16_t page;
-    v_ext_command_t ext_command;
+    v_ext_ops_t *ext_ops;
     v_log_init();
 
     lv_init();
@@ -103,24 +104,31 @@ int main(int argc, char **argv)
     ERR_RETn(status != ST_SUCCESS);
 
 no_default:
-    status = v_init_external_receiver();
-    if (status == ST_SUCCESS)
-    {
-        ext_command_func_init();
-    }
+    ext_ops = v_get_ext_ops();
+    ext_ops->init();
+    ext_ops->set_navigate_page_handler(navigate_page_handler);
+
     while (1)
     {
-        status = v_check_external_command(&ext_command);
-        if (status == ST_SUCCESS)
-        {
-            d("%d", ext_command.command);
-            ext_command_func[ext_command.command](&ext_command);
-        }
+        ext_ops->handle_external_commands();
+        menu_ops->periodic_proc();
         lv_timer_handler();
         usleep(5000);
     }
 error_return:
     return status;
+}
+static void navigate_page_handler(v_ext_command_type_t t)
+{
+    int16_t page = menu_ops->get_page();
+    if (t == V_EXT_PAGE_NEXT)
+    {
+        on_page_changed(page + 1);
+    }
+    else if (t == V_EXT_PAGE_PREV)
+    {
+        on_page_changed(page - 1);
+    }
 }
 
 static void export_pdf(const char *file)
@@ -412,28 +420,4 @@ static v_format_t get_format(const char *path)
         return V_FORMAT_MIDI;
 
     return V_FORMAT_MAX;
-}
-
-static void ext_on_page_changed(const v_ext_command_t *command)
-{
-    int16_t page = menu_ops->get_page();
-    if (command->command == V_EXT_PAGE_PREV)
-    {
-        on_page_changed(page - 1);
-    }
-    else if (command->command == V_EXT_PAGE_NEXT)
-    {
-        on_page_changed(page + 1);
-    }
-}
-
-static void dummy_func(const v_ext_command_t *_)
-{
-}
-
-static void ext_command_func_init(void)
-{
-    ext_command_func[V_EXT_NONE] = dummy_func;
-    ext_command_func[V_EXT_PAGE_PREV] = ext_on_page_changed;
-    ext_command_func[V_EXT_PAGE_NEXT] = ext_on_page_changed;
 }

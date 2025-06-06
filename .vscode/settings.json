@@ -61,7 +61,9 @@
         "memory": "c",
         "cairo-pdf.h": "c",
         "rustlib.h": "c",
-        "v_annot.h": "c"
+        "v_annot.h": "c",
+        "exception": "c",
+        "v_ext_feature.h": "c"
     },
     "C_Cpp.errorSquiggles": "disabled",
     "[jsonc]": {

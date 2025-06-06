@@ -150,7 +150,6 @@ typedef enum
     ST_EXT_NO_RECEIVE,
 } v_status_t;
 
-#include "v_ext_command.h"
 #include "v_log.h"
 
 #endif
